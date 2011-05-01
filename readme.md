@@ -97,7 +97,7 @@ There is also `include_`, which is analogous to `#include` in `cpp`. It takes a 
     def_ HELLO "Hello, World!"
     print(HELLO)
 
-(Like `cpp`, such macro definitions end with the line; however, there is no equivalent of `\\` to extend the definition over multiple lines.)
+(Like `cpp`, such macro definitions end with the line; however, there is no equivalent of `\` to extend the definition over multiple lines.)
 
 `luam` has a `-d` flag, meaning 'dump', which is very useful when debugging the output of the preprocessing step.
 
@@ -239,7 +239,7 @@ There is a second argument passed to the substitution function, which is a 'putt
 
 The `put` object has methods for appending particular kinds of tokens, such as keywords and strings, and is also callable for operator tokens. These always return the object itself, so the output can be built up with chaining.
 
-Consider `\x,y(x+y)`: the `names` getter grabs a comma-separated list of names upto the given token; the `list` getter grabs a general argument list. It returns a list of token lists and by default stops at ')'.  This 'lambda' notation was suggested by LHF as something easily parsed by any token-filtering approach - an alternative notation `|x,y| x+y` has been [suggested]( ) but is generally impossible to implement using a lexical scanner, since it would have to parse the function body as an expression. The `\` macro also has the advantage that the operator precedence is explicit: in the case of `\(42,'answer')` it is immediately clear that this is a function of no arguments which returns two values.
+Consider `\x,y(x+y)`: the `names` getter grabs a comma-separated list of names upto the given token; the `list` getter grabs a general argument list. It returns a list of token lists and by default stops at ')'.  This 'lambda' notation was suggested by LHF as something easily parsed by any token-filtering approach - an alternative notation `|x,y| x+y` has been [suggested](http://lua-users.org/lists/lua-l/2009-12/msg00071.html) but is generally impossible to implement using a lexical scanner, since it would have to parse the function body as an expression. The `\` macro also has the advantage that the operator precedence is explicit: in the case of `\(42,'answer')` it is immediately clear that this is a function of no arguments which returns two values.
 
 (Although I would not necessarily suggest that lambdas are a good thing in production code, they can be useful in iteractive exploration and within tests.)
 
@@ -391,14 +391,14 @@ We're just using the getter `next` method to skip any irritating whitespace, but
 
 becomes
 
-   {'one','two','three'}
+    {'one','two','three'}
 
 
 The main loop of `macro.substitute` (towards end of `macro.lua`) summarizes the operation of LuaMacro:
 
 There are two macro tables, `imacro` for classic name macros, and `smacro` for operator style macros. They contain macro tables, which must have a `subst` field containing the substitution and may have a `parms` field, which means that they must be followed by their arguments in parentheses.
 
-A keywords table is chiefly used to track block scope, e.g. `do`,`if`,`function`,etc means 'increase block level' and `end`,`until` means 'decrease block level`. At this point, any defined block handlers for this level will be evaluated and removed. These may insert tokens into the stream, like macros. This is how something like `_END_CLOSE_` is implemented: the `end` causes the block level to decrease, which fires a block handler which passes `end` through and inserts a closing `)`.
+A keywords table is chiefly used to track block scope, e.g. `do`,`if`,`function`,etc means 'increase block level' and `end`,`until` means 'decrease block level'. At this point, any defined block handlers for this level will be evaluated and removed. These may insert tokens into the stream, like macros. This is how something like `_END_CLOSE_` is implemented: the `end` causes the block level to decrease, which fires a block handler which passes `end` through and inserts a closing `)`.
 
 Any keyword may also have an associated keyword handler, which works rather like a macro substitution, except that the keyword itself is always passed through first. (Allowing keywords as regular macros would generally be a bad idea because of the recursive substitution problem.)
 
