@@ -587,6 +587,7 @@ function M.substitute(src,out,name)
     -- may be a function. In the latter case we call it passing the token getter,
     -- assuming that it will grab anything it needs from the token stream.
     local function expand_macro(get,mac)
+        local pass_through
         local subst = mac.subst
         local fun = type(subst)=='function'
         if mac.parms then
@@ -604,9 +605,10 @@ function M.substitute(src,out,name)
                 subst = substitute(subst,mac.parms,args)
             end
         elseif fun then
-            subst = subst(make_getter(get),make_putter())
+            subst,pass_through = subst(make_getter(get),make_putter())
         end
         push_substitution(subst)
+        return pass_through
     end
 
     local t,v = tok()
@@ -615,8 +617,7 @@ function M.substitute(src,out,name)
         if t == 'iden' then -- classic name macro
             local mac = imacros[v]
             if mac then
-                expand_macro(get,mac)
-                dump = false
+                dump = expand_macro(get,mac)
             end
         elseif t == 'keyword' then
             -- important to track block level for lexical scoping and block handlers
@@ -638,8 +639,7 @@ function M.substitute(src,out,name)
         else -- any unused 'operator' token (like @, \, #) can be used as a macro
             local mac = smacros[v]
             if mac then
-                expand_macro(get,mac)
-                dump = false
+                dump = expand_macro(get,mac)
             end
         end
         if dump then out:write(v) end
