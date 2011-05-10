@@ -64,7 +64,8 @@ M.define '_END_CLOSE_ _END_ ")"'
 -- @macro _STR_
 M.define('_STR_(x)',function(x)
     x = x:iden()
-    return '"'..x..'"'
+    local put = M.Putter()
+    return put '"':name(x) '"'
 end)
 
 -- macro stack manipulation

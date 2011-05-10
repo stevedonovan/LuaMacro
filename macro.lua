@@ -370,6 +370,9 @@ function M.copy_tokens(tok,pred)
     return res
 end
 
+function M.define_tokens(extra)
+    lexer.add_extra_tokens(extra)
+end
 
 local imacros,smacros = {},{}
 

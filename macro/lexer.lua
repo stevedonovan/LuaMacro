@@ -28,65 +28,82 @@ local P, R, S, C, Cc, Ct = lpeg.P, lpeg.R, lpeg.S, lpeg.C, lpeg.Cc, lpeg.Ct
 -- [patt] in a table
 local function token(id, patt) return Ct(Cc(id) * C(patt)) end
 
-local digit = R('09')
-
--- range of valid characters after first character of identifier
-local idsafe = R('AZ', 'az', '\127\255') + P '_'
-
--- operators
-local operator = token('operator', P '==' + P '~=' + P '<=' + P '>=' + P '...'
-                                          + P '..' + S '+-*/%^#=<>;:,.{}[]()')
--- identifiers
-local ident = token('iden', idsafe * (idsafe + digit + P '.') ^ 0)
-
--- keywords
-local keyword = token('keyword', (P 'and' + P 'break' + P 'do' + P 'else' +
-   P 'elseif' + P 'end' + P 'false' + P 'for' + P 'function' + P 'if' +
-   P 'in' + P 'local' + P 'nil' + P 'not' + P 'or' + P 'repeat' + P 'return' +
-   P 'then' + P 'true' + P 'until' + P 'while') * -(idsafe + digit))
-
--- numbers
-local number_sign = S'+-'^-1
-local number_decimal = digit ^ 1
-local number_hexadecimal = P '0' * S 'xX' * R('09', 'AF', 'af') ^ 1
-local number_float = (digit^1 * P'.' * digit^0 + P'.' * digit^1) *
-                     (S'eE' * number_sign * digit^1)^-1
-local number = token('number', number_hexadecimal +
-                               number_float +
-                               number_decimal)
-
--- callback for [=[ long strings ]=]
--- ps. LPeg is for Lua what regex is for Perl, which makes me smile :)
-local longstring = #(P '[[' + (P '[' * P '=' ^ 0 * P '['))
-local longstring = longstring * P(function(input, index)
-   local level = input:match('^%[(=*)%[', index)
-   if level then
-      local _, stop = input:find(']' .. level .. ']', index, true)
-      if stop then return stop + 1 end
-   end
-end)
-
--- strings
-local singlequoted_string = P "'" * ((1 - S "'\r\n\f\\") + (P '\\' * 1)) ^ 0 * "'"
-local doublequoted_string = P '"' * ((1 - S '"\r\n\f\\') + (P '\\' * 1)) ^ 0 * '"'
-local string = token('string', singlequoted_string +
-                               doublequoted_string +
-                               longstring)
-
--- comments
-local singleline_comment = P '--' * (1 - S '\r\n\f') ^ 0
-local multiline_comment = P '--' * longstring
-local comment = token('comment', multiline_comment + singleline_comment)
-
--- whitespace
-local whitespace = token('space', S('\r\n\f\t ')^1)
-
--- ordered choice of all tokens and last-resort error which consumes one character
-local any_token = whitespace + number + keyword + ident +
-                  string + comment + operator + token('error', 1)
-
 -- private interface
-local table_of_tokens = Ct(any_token ^ 0)
+local table_of_tokens
+local extra_tokens
+
+function lexer.add_extra_tokens(extra)
+    extra_tokens = extra
+    table_of_tokens = nil -- re-initialize
+end
+
+function lexer.init ()
+    local digit = R('09')
+
+    -- range of valid characters after first character of identifier
+    local idsafe = R('AZ', 'az', '\127\255') + P '_'
+
+    -- operators
+    local OT = P '=='
+    if extra_tokens then
+        for _,ex in ipairs(extra_tokens) do
+            OT = OT + P(ex)
+        end
+    end
+    local operator = token('operator', OT + P '~=' + P '<=' + P '>=' + P '...'
+                                              + P '..' + S '+-*/%^#=<>;:,.{}[]()')
+    -- identifiers
+    local ident = token('iden', idsafe * (idsafe + digit + P '.') ^ 0)
+
+    -- keywords
+    local keyword = token('keyword', (P 'and' + P 'break' + P 'do' + P 'else' +
+       P 'elseif' + P 'end' + P 'false' + P 'for' + P 'function' + P 'if' +
+       P 'in' + P 'local' + P 'nil' + P 'not' + P 'or' + P 'repeat' + P 'return' +
+       P 'then' + P 'true' + P 'until' + P 'while') * -(idsafe + digit))
+
+    -- numbers
+    local number_sign = S'+-'^-1
+    local number_decimal = digit ^ 1
+    local number_hexadecimal = P '0' * S 'xX' * R('09', 'AF', 'af') ^ 1
+    local number_float = (digit^1 * P'.' * digit^0 + P'.' * digit^1) *
+                         (S'eE' * number_sign * digit^1)^-1
+    local number = token('number', number_hexadecimal +
+                                   number_float +
+                                   number_decimal)
+
+    -- callback for [=[ long strings ]=]
+    -- ps. LPeg is for Lua what regex is for Perl, which makes me smile :)
+    local longstring = #(P '[[' + (P '[' * P '=' ^ 0 * P '['))
+    local longstring = longstring * P(function(input, index)
+       local level = input:match('^%[(=*)%[', index)
+       if level then
+          local _, stop = input:find(']' .. level .. ']', index, true)
+          if stop then return stop + 1 end
+       end
+    end)
+
+    -- strings
+    local singlequoted_string = P "'" * ((1 - S "'\r\n\f\\") + (P '\\' * 1)) ^ 0 * "'"
+    local doublequoted_string = P '"' * ((1 - S '"\r\n\f\\') + (P '\\' * 1)) ^ 0 * '"'
+    local string = token('string', singlequoted_string +
+                                   doublequoted_string +
+                                   longstring)
+
+    -- comments
+    local singleline_comment = P '--' * (1 - S '\r\n\f') ^ 0
+    local multiline_comment = P '--' * longstring
+    local comment = token('comment', multiline_comment + singleline_comment)
+
+    -- whitespace
+    local whitespace = token('space', S('\r\n\f\t ')^1)
+
+    -- ordered choice of all tokens and last-resort error which consumes one character
+    local any_token = whitespace + number + keyword + ident +
+                      string + comment + operator + token('error', 1)
+
+
+    table_of_tokens = Ct(any_token ^ 0)
+end
 
 -- increment [line] by the number of line-ends in [text]
 local function sync(line, text)
@@ -109,6 +126,9 @@ lexer.line = 0
 local multiline_tokens = { comment = true, string = true, space = true }
 
 function lexer.scan_lua_tokenlist(input)
+    if not table_of_tokens then
+        lexer.init()
+    end
     assert(type(input) == 'string', 'bad argument #1 (expected string)')
     local line = 1
     local tokens = lpeg.match(table_of_tokens, input)
