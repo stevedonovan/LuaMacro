@@ -3,8 +3,7 @@ require_ 'macro.forall'
 require_ 'qw'
 def_ put io.stderr:write
 
-forall f in qw(dollar,lambda,try,block,forall,scope,do,const) do
-  f = 'test-'..f..'.lua'
+function run (f)
   put(f,': ')
   if os.execute('luam '..f) ~= 0 then
     put 'failed!\n'
@@ -13,3 +12,10 @@ forall f in qw(dollar,lambda,try,block,forall,scope,do,const) do
     put 'ok\n'
   end
 end
+
+forall f in qw(dollar,lambda,try,block,forall,scope,do,const,with,case) do
+  f = 'test-'..f..'.lua'
+  run(f)
+end
+
+run '-lcskin test-cskin.lua'
