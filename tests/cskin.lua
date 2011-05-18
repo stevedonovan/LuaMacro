@@ -138,25 +138,6 @@ M.define('{|',function(get,put)
     return ('(def(){local r={}; forall(%s) {r[#r+1]=%s} return r})()'):format(select,expr)
 end)
 
-M.define('switch',function(get,put)
-    get:expecting '('
-    local stuff = get:upto ')'
-    get:expecting '{'
-    local res = 'repeat _END_ " until true" local _val = '..tostring(stuff)..' if(true){   '
-    push_brace_stack ()
-    return res
-end)
-
-M.define('case',function(get,put)
-    local expr = get:upto ':'
-    return '} if (_val == '..tostring(expr)..') { '
-end)
-
-M.define('default',function(get,put)
-    get:expecting ':'
-    return '} else {  '
-end)
-
 
 
 

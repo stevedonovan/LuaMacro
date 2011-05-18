@@ -81,7 +81,10 @@ To run the program:
 
 So the module `hello-def.lua` is first loaded (compiled and executed, but not preprocessed) and only then `hello.lua` can be preprocessed and then loaded.
 
-Naturaly, there are easier ways to use LuaMacro, but I want to emphasize the sequence of macro loading, preprocessing and script loading.
+Naturaly, there are easier ways to use LuaMacro, but I want to emphasize the sequence of macro loading, preprocessing and script loading. `luam` has a `-d` flag, meaning 'dump', which is very useful when debugging the output of the preprocessing step:
+
+    $> luam -d -hello-def hello.lua
+    print("Hello, World!")
 
 `hello2.lua` is a more sensible first program:
 
@@ -99,7 +102,17 @@ There is also `include_`, which is analogous to `#include` in `cpp`. It takes a 
 
 (Like `cpp`, such macro definitions end with the line; however, there is no equivalent of `\` to extend the definition over multiple lines.)
 
-`luam` has a `-d` flag, meaning 'dump', which is very useful when debugging the output of the preprocessing step.
+With 2.1, an alternative syntax `def_ (name body)` is also available, which can be embedded inside a macro expression:
+
+    def_ OF_ def_ (of elseif _value ==)
+
+Or even extend over several lines:
+
+    def_ (complain(msg,n)
+      for i = 1,n do
+        print msg
+      end
+    )
 
 `def_` works pretty much like `#define`, for instance, `def_ SQR(x) ((x)*(x))`. A number of C-style favourites can be defined, like `assert_` using `_STR_`, which is a predefined macro that 'stringifies' its argument.
 
@@ -246,7 +259,7 @@ Consider `\x,y(x+y)`: the `names` getter grabs a comma-separated list of names u
 Macros with explicit parameters can define a substitution function, but this function receives the values themselves, not the getter and putter objects. These values are _token lists_ and must be converted into the expected types using the token list methods:
 
     macro.define('test_(var,start,finish)',function(var,start,finish)
-        var,start,finish = var:iden(),start:number(),finish:number()
+        var,start,finish = var:get_iden(),start:get_number(),finish:get_number()
         print(var,start,finish)
     end)
 
@@ -261,7 +274,7 @@ Since no `put` object is received, such macros need to construct their own:
 
 ### Dynamically controlling macro expansion
 
-Consider this oop-unrolling macro:
+Consider this loop-unrolling macro:
 
     do_(i,1,3,
        y = y + 1
@@ -352,6 +365,44 @@ And here is the definition:
     end)
 
 The first expansion case happens if we are not within a `do_` macro; a simple list of names is outputted.  Otherwise, we know what the loop variable is, and can directly ask for its value.
+
+### Operator Macros
+
+You can of course define `@` to be a macro; a new feature allows you to add new operator tokens:
+
+    macro.define_tokens {'##','@-'}
+
+which can then be used with `macro.define`, but also now with `def_`. It's now possible to define a list comprehension syntax that reads more naturally, e.g. `{|x^2| i=1,10}` by making `{|` into a new token.
+
+Up to now, making a Lua operator token such as `.` into a macro was not so useful. Such a macro may now return an extra value which indicates that the operator should simply 'pass through' as is.  Consider defining a `with` statement:
+
+    with A do
+        .x = 1
+        .y = 2
+    end
+
+I've deliberately indicated the fields using a dot (a rare case of Visual Basic syntax being superior to Delphi).  So it is necessary to overload '.' and look at the previous token: if it isn't a case like `name.` or `].` then we prepend the table.
+
+    M.define('with',function(get,put)
+      M.set_scoped_macro('.',function()
+        local lt,lv = M.last_token() --  peek before the period...
+        if lt ~= 'iden' and lt ~= ']' then
+          return '_var.'
+        else
+          return nil,true -- pass through
+        end
+      end)
+      local expr = get:upto 'do'
+      return 'do local _var = '..tostring(expr)..'; '
+    end)
+
+Again, scoping means that this behaviour is completely local to the with-block.
+
+A more elaborate experiment is `cskin.lua` in the tests directory. This translates a curly-bracket form into standard Lua, and at its heart is defining '{' and '}' as macros. You have to keep a brace stack, because these tokens still have their old meaning. The table constructor in this example must still work, while the trailing brace must be converted to `end`.
+
+    if (a > b) {
+       t = {a,b}
+    }
 
 
 ### Implementation
