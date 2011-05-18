@@ -33,7 +33,10 @@ local table_of_tokens
 local extra_tokens
 
 function lexer.add_extra_tokens(extra)
-    extra_tokens = extra
+    extra_tokens = extra_tokens or {}
+    for _,t in ipairs(extra) do
+        table.insert(extra_tokens,t)
+    end
     table_of_tokens = nil -- re-initialize
 end
 
@@ -56,8 +59,8 @@ function lexer.init ()
     local ident = token('iden', idsafe * (idsafe + digit + P '.') ^ 0)
 
     -- keywords
-    local keyword = token('keyword', (P 'and' + P 'break' + P 'do' + P 'else' +
-       P 'elseif' + P 'end' + P 'false' + P 'for' + P 'function' + P 'if' +
+    local keyword = token('keyword', (P 'and' + P 'break' + P 'do' + P 'elseif' +
+       P 'else' + P 'end' + P 'false' + P 'for' + P 'function' + P 'if' +
        P 'in' + P 'local' + P 'nil' + P 'not' + P 'or' + P 'repeat' + P 'return' +
        P 'then' + P 'true' + P 'until' + P 'while') * -(idsafe + digit))
 
@@ -119,11 +122,13 @@ local function sync(line, text)
    end
    return line
 end
+lexer.sync = sync
 
 lexer.line = 0
 
 -- we only need to synchronize the line-counter for these token types
 local multiline_tokens = { comment = true, string = true, space = true }
+lexer.multiline_tokens = multiline_tokens
 
 function lexer.scan_lua_tokenlist(input)
     if not table_of_tokens then
@@ -150,7 +155,7 @@ end
 -- Note that this token iterator includes spaces and comments, and does not convert
 -- string and number tokens - so e.g. a string token is quoted and a number token is
 -- an unconverted string.
-function lexer.scan_lua(input)
+function lexer.scan_lua(input,name)
     if type(input) ~= 'string' and input.read then
         input = input:read('*a')
     end
@@ -161,6 +166,7 @@ function lexer.scan_lua(input)
         i = i + 1
         if tok then
             lexer.line = tok[3]
+            lexer.name = name
             return tok[1],tok[2]
         end
     end

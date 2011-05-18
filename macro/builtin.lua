@@ -13,18 +13,26 @@ local M = require 'macro'
 M.define ('def_',function(get)
     local t,name,parms,openp
     local t,name = M.tnext(get)
+    local upto,ret
+    if t == '(' then
+        t,name = M.tnext(get)
+        upto = function(t,v) return t == ')' end
+    else
+        upto = function(t,v)
+            return t == 'space' and v:find '\n'
+        end
+        -- return \n, because copy_tokens will eat the line ending
+        ret = {{'space','\n'}}
+    end
     -- might be immediately followed by a parm list
     t,openp = get()
     if openp == '(' then
         parms = M.get_names(get)
     end
     -- the actual substitution is up to the end of the line
-    local args = M.copy_tokens(get,function(t,v)
-        return t == 'space' and v:find '\n'
-    end)
+    local args = M.copy_tokens(get,upto)
     M.set_scoped_macro(name,args,parms)
-    -- return \n, because copy_tokens has eaten the line ending
-    return {{'space','\n'}}
+    return ret
 end)
 
 M.define('set_',function(get)
@@ -44,7 +52,8 @@ end)
 -- @macro _END_
 M.define ('_END_',function(get)
     local str = get:string()
-    M.block_handler(-1,function()
+    M.block_handler(-1,function(get,word)
+        if word ~= 'end' then return nil,true end
         return str
     end)
 end)

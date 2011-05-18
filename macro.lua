@@ -59,11 +59,13 @@ function M.get_list(tok,endtoken,delim)
             return t == endtoken
         end
     end
-    local token,value
+    local token,value = tok()
+    if is_end(token,value) then return {} end
+    if token == 'space' then
+        token,value = tok()
+    end
     while true do
-        token,value=tok()
-        --print(token,value)
-        if not token then return nil,'EOS' end -- end of stream is an error!
+        if not token then return nil,'unexpected end of list' end -- end of stream is an error!
         if is_end(token,value) and level == 1 then
             append(parm_values,tl)
             break
@@ -90,6 +92,7 @@ function M.get_list(tok,endtoken,delim)
         else
             tappend(tl,token,value)
         end
+        token,value=tok()
     end
     return parm_values,{token,value}
 end
@@ -99,6 +102,18 @@ function M.upto_keywords (k1,k2)
         return t == 'keyword' and (v == k1 or v == k2)
     end,''
 end
+
+-- create a token iterator out of a token list
+local function scan_iter (tlist)
+    local i,n = 1,#tlist
+    return function()
+        local tv = tlist[i]
+        if tv == nil then return nil end
+        i = i + 1
+        return tv[1],tv[2]
+    end
+end
+
 
 function M.get_upto(tok,k1,k2)
     local endt = k1
@@ -117,15 +132,16 @@ function M.tnext(get)
     end
     return t,v
 end
+local tnext = M.tnext
 
 function M.get_name(tok)
-    local t,v = M.tnext(tok)
+    local t,v = tnext(tok)
     M.assert(t == 'iden','expecting name')
     return v
 end
 
 function M.get_number(tok)
-    local t,v = M.tnext(tok)
+    local t,v = tnext(tok)
     M.assert(t == 'number','expecting number')
     return tonumber(v)
 end
@@ -151,18 +167,17 @@ end
 --- get the next string from the token stream.
 -- Will skip space.
 function M.get_string(tok)
-    local t,v = M.tnext(tok)
-    M.assert(t == 'string','expecting string')
+    local t,v = M.expecting(tok,"string")
     return v:sub(2,-2)
 end
 
 --- assert that the next token has the given type.
 -- @param type a token type ('iden','string',etc)
 function M.expecting (tok,type,value)
-    local t,v = tok()
-    if t ~= type then macro.error ("expected "..type.." got "..t) end
+    local t,v = tnext(tok)
+    if t ~= type then M.error ("expected "..type.." got "..t) end
     if value then
-        if v ~= value then macro.error("expected "..value.." got "..v) end
+        if v ~= value then M.error("expected "..value.." got "..v) end
     end
     return t,v
 end
@@ -185,9 +200,12 @@ local GetterMT = {
     end
 }
 
-
 local function make_getter (get)
     return setmetatable({fun=get},GetterMT)
+end
+
+function M.Getter(tl)
+    return make_getter(scan_iter(tl))
 end
 
 local function extract (tl)
@@ -198,19 +216,19 @@ local function extract (tl)
     return tk
 end
 
-function TokenList.iden (tl)
+function TokenList.get_iden (tl)
     local tk = extract(tl)
     M.assert(tk[1]=='iden','expecting identifier')
     return tk[2]
 end
 
-function TokenList.number(tl)
+function TokenList.get_number(tl)
     local tk = extract(tl)
     M.assert(tk[1]=='number','expecting number')
     return tonumber(tk[2])
 end
 
-function TokenList.string(tl)
+function TokenList.get_string(tl)
     local tk = extract(tl)
     M.assert(tk[1]=='string')
     return tk[2]:sub(2,-2) -- watch out! what about long string literals??
@@ -302,37 +320,21 @@ function M.put(res,t,v)
     return res
 end
 
-local PutterMT = {
-    __call = function(obj,...)
-        return M.put(obj,...)
-    end,
-    keyword = M.put_keyword,
-    space = M.put_space,
-    list = M.put_list,
-    names = M.put_names,
-    tokens = M.put_tokens,
-    name = M.put_name,
-    string = M.put_string,
-    number = M.put_number
-}
-PutterMT.__index = PutterMT
-
-local function make_putter ()
-    return setmetatable({},PutterMT)
+TokenList.__call = function(obj,...)
+    return M.put(obj,...)
 end
+TokenList.keyword = M.put_keyword
+TokenList.space = M.put_space
+TokenList.list = M.put_list
+TokenList.names = M.put_names
+TokenList.tokens = M.put_tokens
+TokenList.name = M.put_name
+TokenList.string = M.put_string
+TokenList.number = M.put_number
+
+local make_putter = TL
 
 M.Putter = make_putter
-
--- create a token iterator out of a token list
-local function scan_iter (tlist)
-    local i,n = 1,#tlist
-    return function()
-        local tv = tlist[i]
-        if tv == nil then return nil end
-        i = i + 1
-        return tv[1],tv[2]
-    end
-end
 
 -- given a token list, a set of formal arguments and the actual arguments,
 -- return a new token list where the formal arguments have been replaced
@@ -376,6 +378,8 @@ end
 
 local imacros,smacros = {},{}
 
+M.macro_table = imacros
+
 --- define a macro using a specification string and optional function.
 -- The specification looks very much like a C preprocessor macro: the name,
 -- followed by an optional formal argument list (_no_ space after name!) and
@@ -408,11 +412,17 @@ function M.define(macstr,subst_fn)
 end
 
 function M.set_macro(name,subst,parms)
+    local macros
+    if name:match '^[_%a][_%w]*$' then
+        macros = imacros
+    else
+        macros = smacros
+    end
     if subst == nil then
-        imacros[name] = nil
+        macros[name] = nil
         return
     end
-    local last = imacros[name]
+    local last = macros[name]
     if type(subst) ~= 'table' or not subst.name then
         subst = {
             name = name,
@@ -420,7 +430,7 @@ function M.set_macro(name,subst,parms)
             parms = parms
         }
     end
-    imacros[name] = subst
+    macros[name] = subst
     return last
 end
 
@@ -479,7 +489,7 @@ end
 local keywords = {
     ['do'] = 'open', ['then'] = 'open', ['else'] = 'open', ['function'] = 'open',
     ['repeat'] = 'open';
-    ['end'] = 'close', ['until'] = 'close'
+    ['end'] = 'close', ['until'] = 'close',['elseif'] = 'close'
 }
 
 local block_handlers,keyword_handlers = {},{}
@@ -527,14 +537,19 @@ end
 M.please_throw = false
 
 function M.error(msg)
-    msg = lexer.filename..':'..lexer.line..' '..msg
-    if please_throw then
+    M.please_throw = true
+    msg = M.filename..':'..lexer.line..' '..msg
+    if M.please_throw then
         error(msg,2)
     else
         io.stderr:write(msg,'\n')
         os.exit(1)
     end
 end
+
+M.define ('debug_',function()
+    M.DEBUG = true
+end)
 
 function M.assert(expr,msg)
     if not expr then M.error(msg or 'internal error') end
@@ -544,9 +559,9 @@ end
 -- @param src Lua source (either string or file-like reader)
 -- @param out output (a file-like writer)
 function M.substitute(src,out,name)
-    local tok = scan_lua(src)
+    local tok = scan_lua(src,name)
 
-    lexer.filename = name
+    M.filename = name or '(tmp)'
 
     -- this function get() is always used, so that we can handle end-of-stream properly.
     -- The substitution mechanism pushes a new stream on the tstack, which is popped
@@ -594,11 +609,12 @@ function M.substitute(src,out,name)
         local subst = mac.subst
         local fun = type(subst)=='function'
         if mac.parms then
-            t = M.tnext(get);
+            t = tnext(get);
             if t ~= '(' then
                 M.error('macro '..mac.name..' expects parameters')
             end
-            local args = M.get_list(get)
+            local args,err = M.get_list(get)
+            M.assert(args,'no end of argument list')
             if fun then
                 subst = subst(unpack(args))
             else
@@ -615,6 +631,14 @@ function M.substitute(src,out,name)
     end
 
     local t,v = tok()
+    local last_t,last_v
+    local multiline_tokens,sync = lexer.multiline_tokens,lexer.sync
+    local line,last_diff = 1,0
+
+    function M.last_token()
+        return last_t,last_v
+    end
+
     while t do
         local dump = true
         if t == 'iden' then -- classic name macro
@@ -630,10 +654,20 @@ function M.substitute(src,out,name)
             elseif class == 'close' then
                 level = level - 1
                 if block_handlers[level] then
+                    local persist
+                    -- a block handler may indicate with an extra true return
+                    -- that it wants to persist; the keyword is passed to them
+                    -- so we can get more specific end of block handlers.
                     for _,bh in pairs(block_handlers[level]) do
-                        push_substitution (bh(get))
+                        local res,keep = bh(get,v)
+                        if not keep then
+                            push_substitution (res)
+                        else
+                            persist = persist or {}
+                            append(persist,bh)
+                        end
                     end
-                    block_handlers[level] = nil
+                    block_handlers[level] = persist
                 end
             elseif class == 'hook' then
                 local action = keyword_handlers[v]
@@ -645,7 +679,20 @@ function M.substitute(src,out,name)
                 dump = expand_macro(get,mac)
             end
         end
-        if dump then out:write(v) end
+        if dump then
+            out:write(v)
+            if multiline_tokens[t] then
+                line = sync(line, v)
+                if M.filename == lexer.name then
+                    local diff = line - lexer.line
+                    if diff ~= last_diff then
+                        --print(line,lexer.line)
+                        last_diff = diff
+                    end
+                end
+            end
+        end
+        last_t,last_v = t,v
         t,v = get()
     end
 
@@ -653,7 +700,11 @@ end
 
 --- take some Lua source and return the result of the substitution.
 -- Does not raise any errors.
-function M.substitute_tostring(src)
+-- @param src either a string or a readable file object
+-- @param name optional name for the chunk
+-- @return the result or nil
+-- @return the error, if error
+function M.substitute_tostring(src,name)
     M.please_throw = true
     local buf,k = {},1
     local out = {
@@ -662,11 +713,71 @@ function M.substitute_tostring(src)
             k = k + 1
         end
     }
-    local res,err = pcall(M.substitute,src,out)
+    local res,err = pcall(M.substitute,src,out,name)
+    if type(src) ~= 'string' and src.close then src:close() end
     if not res then return nil,err
     else
         return table.concat(buf)
     end
+end
+
+local old_loadin = loadin
+local loadin
+
+if not old_loadin then -- Lua 5.1
+    function loadin (env,src,name)
+        local chunk,err = loadstring(src,name)
+        if chunk and env then
+            setfenv(chunk,env)
+        end
+        return chunk,err
+    end
+else -- Lua 5.2
+    function loadin(env,src,name)
+        local chunk,err
+        if env then
+            chunk,err = old_loadin(env,src,name)
+        else
+            chunk,err = load(src,name)
+        end
+        return chunk,err
+    end
+end
+
+--- load Lua code in a given envrionment after passing
+-- through the macro preprocessor.
+-- @param env the environment (may be nil)
+-- @param src either a string or a readable file object
+-- @param name optional name for the chunk
+-- @return the cnunk, or nil
+-- @return the error, if no chunk
+function M.loadin(env,src,name)
+    local res,err = M.substitute_tostring(src)
+    if not res then return nil,err end
+    return loadin(env,res,name)
+end
+
+--- evaluate Lua macro code in a given environment.
+-- @param src either a string or a readable file object
+-- @param env the environment (can be nil)
+-- @return true if succeeded
+-- @return result(s)
+function M.eval(src,env)
+    local chunk,err = M.loadin(env,src,'(tmp)')
+    if not chunk then return nil,err end
+    return pcall(chunk)
+end
+
+function M.set_package_loader(ext)
+    ext = ext or 'm.lua'
+    -- directly inspired by https://github.com/bartbes/Meta/blob/master/meta.lua#L32,
+    -- after a suggestion by Alexander Gladysh
+    table.insert(package.loaders, function(name)
+        local lname = name:gsub("%.", "/") .. '.'..ext
+        local f,err = io.open(lname)
+        if not f then return nil,err end
+        return M.loadin(nil,f,lname)
+    end)
 end
 
 return macro

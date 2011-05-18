@@ -10,11 +10,12 @@ require 'macro.builtin'
 --- Using luam.
 -- @usage follows
 local usage = [[
-luam, a Lua macro preprocessor and runner
-    -l  library
+LuaMacro 2.1, a Lua macro preprocessor and runner
+    -l  require a library
     -e  statement to be executed
     -c  error context to be shown (default 2)
     -d  dump preprocessed output to stdout
+    -i  interactive prompt
     <input>    Lua source file
 ]]
 
@@ -50,10 +51,10 @@ while i <= #arg do
     i = i + 1
 end
 
-if not args[1] then
+if not args[1] and not args.i then
     print(usage)
     os.exit()
-else
+elseif args[1] then
     args.input_name = args[1]
     args.input,err = io.open(args[1],'r')
     if err then return print(err) end
@@ -65,6 +66,7 @@ for k,v in pairs(takes_value) do
         args[k] = v
     end
 end
+
 
 local function runstring (code,name,...)
     local res,err = loadstring(code,name)
@@ -83,29 +85,98 @@ local function runstring (code,name,...)
         io.stderr:write(err,'\n')
         os.exit(1)
     end
-    res(...)
+    return res(...)
 end
 
-local function subst_runstring (ins,name,...)
+local function subst (ins,name)
     local buf,i = {},1
     local outf = {write = function(self,v)
         buf[i] = v
         i = i + 1
     end}
     macro.substitute(ins,outf,name)
-    buf = table.concat(buf)
+    return table.concat(buf)
+end
+
+local function subst_runstring (ins,name,...)
+    local buf = subst(ins,name)
     if args.d then
         print(buf)
     else
-        runstring(buf,name,...)
+        return runstring(buf,name,...)
     end
 end
+
+-- Lua 5.1/5.2 compatibility
+local pack = table.pack
+if not pack then
+    function pack(...)
+        return {n=select('#',...),...}
+    end
+end
+if not unpack then unpack = table.unpack end
+
+local function eval(code)
+    local status,val,f,err,rcnt
+    code,rcnt = code:gsub('^%s*=','return ')
+    f,err = loadstring(code,'TMP')
+    if f then
+        res = pack(pcall(f))
+        if not res[1] then err = res[2]
+        else
+            return res
+        end
+    end
+    if err then
+        err = tostring(err):gsub('^%[string "TMP"%]:1:','')
+        return {nil,err}
+    end
+end
+
+local function interactive_loop ()
+    os.execute(arg[-1]..' -v') -- for the Lua copyright
+    print 'Lua Macro 2.1 Copyright (C) 2007-2011 Steve Donovan'
+
+    local function readline()
+        io.write(_PROMPT or '> ')
+        return io.read()
+    end
+
+    require 'macro.all'
+    _G.macro = macro
+    macro.define 'quit os.exit()'
+
+    local line = readline()
+    while line do
+        local ok,s = pcall(subst,line..'\n')
+        if not ok then
+            s = s:gsub('.-:%d+:','')
+            print('macro error: '..s)
+        else
+            if args.d then print(s) end
+            local res = eval(s)
+            if not res[1] then
+                print('expanded: '..s)
+                print('error: '..res[2])
+            elseif res[2] ~= nil then
+                print(unpack(res,2))
+           end
+        end
+        line = readline()
+    end
+end
+
+macro.set_package_loader()
 
 if args.l ~= '' then require(args.l) end
 
 if args.e ~= '' then
     subst_runstring(args.e,"<temp>")
 else
-    arg = args
-    subst_runstring(args.input,args.input_name,unpack(args))
+    if args.input then
+        arg = args
+        subst_runstring(args.input,args.input_name,unpack(args))
+    elseif args.i then
+        interactive_loop()
+    end
 end

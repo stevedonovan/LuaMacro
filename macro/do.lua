@@ -16,7 +16,7 @@ M.define('do_(v,s,f,stat)',function(var,start,finish,statements)
     -- macros with specified formal args have to make their own putter,
     -- and convert the actual arguments to the type they expect.
     local put = M.Putter()
-    var,start,finish = var:iden(),start:number(),finish:number()
+    var,start,finish = var:get_iden(),start:get_number(),finish:get_number()
     M.push_macro_stack('do_',var)
     -- 'do_' works by setting the variable macro for each value
     for i = start, finish do
@@ -36,7 +36,6 @@ M.define('tuple',function(get)
     get:expecting '('
     local N = get:number()
     get:expecting ')'
-    get:expecting 'space'
     local names = get:names '\n'
     for _,name in ipairs(names) do
         M.define(name,function(get,put)
