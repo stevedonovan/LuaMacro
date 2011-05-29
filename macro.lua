@@ -12,7 +12,7 @@
 local macro = {}
 local M = macro
 local lexer = require 'macro.lexer'
-local scan_lua = lexer.scan_lua
+local scan_code = lexer.scan_lua
 local append = table.insert
 local setmetatable = setmetatable
 
@@ -22,6 +22,21 @@ TokenList.__index = TokenList
 
 local function TL (tl)
     return setmetatable(tl or {},TokenList)
+end
+
+local TokenListList = {}
+
+local function LTL (ltl)
+    return setmetatable(ltl or {},TokenListList)
+end
+
+TokenListList.__index = function(self,key)
+    local m = TokenList[key]
+    return function(self,...)
+        local res = {}
+        for i = 1,#self do res[i] = m(self[i],...) end
+        return LTL(res)
+    end
 end
 
 -- token-getting helpers
@@ -40,7 +55,7 @@ end
 function M.get_list(tok,endtoken,delim)
     endtoken = endtoken or ')'
     delim = delim or ','
-    local parm_values = {}
+    local parm_values = LTL()
     local level = 1 -- used to count ( and )
     local tl = TL()
     local function tappend (tl,t,val)
@@ -60,7 +75,7 @@ function M.get_list(tok,endtoken,delim)
         end
     end
     local token,value = tok()
-    if is_end(token,value) then return {} end
+    if is_end(token,value) then return parm_values end
     if token == 'space' then
         token,value = tok()
     end
@@ -117,7 +132,7 @@ end
 
 function M.get_upto(tok,k1,k2)
     local endt = k1
-    if k1:match '^%a+$' then
+    if type(k1) == 'string' and k1:match '^%a+$' then
         endt = M.upto_keywords(k1,k2)
     end
     local ltl = M.get_list(tok,endt,'')
@@ -233,6 +248,23 @@ function TokenList.get_string(tl)
     M.assert(tk[1]=='string')
     return tk[2]:sub(2,-2) -- watch out! what about long string literals??
 end
+
+--- takes a token list and strips spaces and comments.
+function TokenList.strip_spaces (tl)
+    local out = TL()
+    for _,t in ipairs(tl) do
+        if t[1] ~= 'comment' and t[1] ~= 'space' then
+            append(out,t)
+        end
+    end
+    return out
+end
+
+function TokenList:pick (n)
+    local t = self[n]
+    return t[2],t[1]
+end
+
 
 -- token-putting helpers
 local comma,space = {',',','},{'space',' '}
@@ -392,7 +424,7 @@ M.macro_table = imacros
 function M.define(macstr,subst_fn)
     local tok,t,macname,parms,parm_map
     local mtbl
-    tok = scan_lua(macstr)
+    tok = scan_code(macstr)
     t,macname = tok()
     if t == 'iden' then mtbl = imacros
     elseif t ~= 'string' and t ~= 'number' and t ~= 'keyword' then
@@ -486,11 +518,14 @@ function M.value_of_macro_stack (name)
     end
 end
 
-local keywords = {
+local lua_keywords = {
     ['do'] = 'open', ['then'] = 'open', ['else'] = 'open', ['function'] = 'open',
     ['repeat'] = 'open';
     ['end'] = 'close', ['until'] = 'close',['elseif'] = 'close'
 }
+
+local c_keywords = {}
+local keywords = lua_keywords
 
 local block_handlers,keyword_handlers = {},{}
 local level = 1
@@ -503,6 +538,25 @@ function M.block_handler (lev,action)
     end
     append(block_handlers[lev],action)
 end
+
+local function process_block_handlers(level,get,v)
+    local persist,result
+    -- a block handler may indicate with an extra true return
+    -- that it wants to persist; the keyword is passed to them
+    -- so we can get more specific end of block handlers.
+    for _,bh in pairs(block_handlers[level]) do
+        local res,keep = bh(get,v)
+        if not keep then
+            if res then result = res end
+        else
+            persist = persist or {}
+            append(persist,bh)
+        end
+    end
+    block_handlers[level] = persist
+    return result
+end
+
 
 --- set a keyword handler. Unlike macros, the keyword itself is always
 -- passed through, but the handler may add some output afterwards.
@@ -558,8 +612,17 @@ end
 --- Do a macro substitution on Lua source.
 -- @param src Lua source (either string or file-like reader)
 -- @param out output (a file-like writer)
-function M.substitute(src,out,name)
-    local tok = scan_lua(src,name)
+function M.substitute(src,out,name, use_c)
+    if use_c then
+        lexer = require 'macro.clexer'
+        scan_code = lexer.scan_c
+        keywords = c_keywords
+    else
+        lexer = require 'macro.lexer'
+        scan_code = lexer.scan_lua
+        keywords = lua_keywords
+    end
+    local tok = scan_code(src,name)
 
     M.filename = name or '(tmp)'
 
@@ -590,7 +653,7 @@ function M.substitute(src,out,name)
         if st == 'table' then
             subst = scan_iter(subst)
         elseif st == 'string' then
-            subst = scan_lua(subst)
+            subst = scan_code(subst)
         end
         tok = subst
     end
@@ -654,26 +717,25 @@ function M.substitute(src,out,name)
             elseif class == 'close' then
                 level = level - 1
                 if block_handlers[level] then
-                    local persist
-                    -- a block handler may indicate with an extra true return
-                    -- that it wants to persist; the keyword is passed to them
-                    -- so we can get more specific end of block handlers.
-                    for _,bh in pairs(block_handlers[level]) do
-                        local res,keep = bh(get,v)
-                        if not keep then
-                            push_substitution (res)
-                        else
-                            persist = persist or {}
-                            append(persist,bh)
-                        end
-                    end
-                    block_handlers[level] = persist
+                    local res = process_block_handlers(level,get,v)
+                    if res then push_substitution(res) end
                 end
             elseif class == 'hook' then
                 local action = keyword_handlers[v]
                 push_substitution(action(make_getter(get),make_putter()))
             end
         else -- any unused 'operator' token (like @, \, #) can be used as a macro
+            if use_c then
+                if v == '{' then
+                    level = level + 1
+                elseif v == '}' then
+                    level = level - 1
+                    if block_handlers[level] then
+                        local res = process_block_handlers(level,get,v)
+                        if res then push_substitution(res) end
+                    end
+                end
+            end
             local mac = smacros[v]
             if mac then
                 dump = expand_macro(get,mac)

@@ -4,36 +4,46 @@
 
 local M = require 'macro'
 
+local function macro_def (scoped)
+    return function (get)
+        local t,name,parms,openp
+        local t,name = M.tnext(get)
+        local upto,ret
+        if t == '(' then
+            t,name = M.tnext(get)
+            upto = function(t,v) return t == ')' end
+        else
+            upto = function(t,v)
+                return t == 'space' and v:find '\n'
+            end
+            -- return \n, because copy_tokens will eat the line ending
+            ret = {{'space','\n'}}
+        end
+        -- might be immediately followed by a parm list
+        t,openp = get()
+        if openp == '(' then
+            parms = M.get_names(get)
+        end
+        -- the actual substitution is up to the end of the line
+        local args = M.copy_tokens(get,upto)
+        if scoped then
+            M.set_scoped_macro(name,args,parms)
+        else
+            M.set_macro(name,args,parms)
+        end
+        return ret
+    end
+end
+
 --- a macro for defining lexically scoped simple macros.
 -- def_ may be followed by an arglist, and the substitution is the
 -- rest of the line.
 -- @usage def_ block (function() _END_CLOSE_
 -- @usage def_ sqr(x) ((x)*(x))
 -- #macro def_
-M.define ('def_',function(get)
-    local t,name,parms,openp
-    local t,name = M.tnext(get)
-    local upto,ret
-    if t == '(' then
-        t,name = M.tnext(get)
-        upto = function(t,v) return t == ')' end
-    else
-        upto = function(t,v)
-            return t == 'space' and v:find '\n'
-        end
-        -- return \n, because copy_tokens will eat the line ending
-        ret = {{'space','\n'}}
-    end
-    -- might be immediately followed by a parm list
-    t,openp = get()
-    if openp == '(' then
-        parms = M.get_names(get)
-    end
-    -- the actual substitution is up to the end of the line
-    local args = M.copy_tokens(get,upto)
-    M.set_scoped_macro(name,args,parms)
-    return ret
-end)
+M.define ('def_',macro_def(true))
+
+M.define ('define_',macro_def(false))
 
 M.define('set_',function(get)
     local name = get:name()

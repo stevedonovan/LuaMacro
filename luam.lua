@@ -15,6 +15,7 @@ LuaMacro 2.1, a Lua macro preprocessor and runner
     -e  statement to be executed
     -c  error context to be shown (default 2)
     -d  dump preprocessed output to stdout
+    -C  C lexer
     -i  interactive prompt
     <input>    Lua source file
 ]]
@@ -94,13 +95,13 @@ local function subst (ins,name)
         buf[i] = v
         i = i + 1
     end}
-    macro.substitute(ins,outf,name)
+    macro.substitute(ins,outf,name,args.C)
     return table.concat(buf)
 end
 
 local function subst_runstring (ins,name,...)
     local buf = subst(ins,name)
-    if args.d then
+    if args.d or args.C then
         print(buf)
     else
         return runstring(buf,name,...)
