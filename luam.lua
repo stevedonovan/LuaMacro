@@ -10,12 +10,13 @@ require 'macro.builtin'
 --- Using luam.
 -- @usage follows
 local usage = [[
-LuaMacro 2.1, a Lua macro preprocessor and runner
+LuaMacro 2.2, a Lua macro preprocessor and runner
     -l  require a library
     -e  statement to be executed
     -c  error context to be shown (default 2)
     -d  dump preprocessed output to stdout
     -C  C lexer
+    -N  No #line directives when generating C
     -i  interactive prompt
     <input>    Lua source file
 ]]
@@ -68,25 +69,80 @@ for k,v in pairs(takes_value) do
     end
 end
 
+---------- compiling and running the output ------
+-- the tricky bit here is presenting the errors so that they refer to the
+-- original line numbers. In addition, we also present a few lines of context
+-- in the output.
 
-local function runstring (code,name,...)
-    local res,err = loadstring(code,name)
-    if not res then
-        local lno = err:match(':(%d+):')
+local function lookup_line (lno,li)
+    for i = 1,#li-1 do
+        --print(li[i].il,li[i].ol)
+        if lno < li[i+1].ol then
+            return li[i].il + (lno - li[i].ol) - 1
+        end
+    end
+    return
+end
+
+-- iterating over all lines in a string can be awkward;
+-- gmatch doesn't handle the empty-line cases properly.
+local function split_nl (t)
+    local k1 = 1
+    local k2 = t:find ('[\r\n]',k1)
+    return function()
+        if not k2 then return nil end
+        local res = t:sub(k1,k2-1)
+        k1 = k2+1
+        k2 = t:find('[\r\n]',k1)
+        return res
+    end
+end
+
+local function fix_error_trace (err,li)
+    local strname,lno = err:match '%[string "(%S+)"%]:(%d+)'
+    --print(strname,lno)
+    local ino
+    if strname then
         lno = tonumber(lno)
-        local l1,l2 = lno-args.c,lno+args.c
-        local l = 1
-        for line in code:gmatch '[^\n]+' do
-            if l >= l1 and l <= l2 then
-                if l == lno then io.write('*') end
-                print(l,line)
+        if li then
+            ino = lookup_line(lno,li)
+            err = err:gsub('%[string "%S+"%]:'..lno..':',strname..':'..ino)
+        end
+    end
+    return err,lno,ino
+end
+
+local function runstring (code,name,li,...)
+    local res,err = loadstring(code,name)
+    local lno,ok
+    if not res then
+        err,lno,ino = fix_error_trace(err,li)
+        if ino then
+            print 'preprocessed context of error:'
+            local l1,l2 = lno-args.c,lno+args.c
+            local l = 1
+            for line in split_nl(code) do
+                if l >= l1 and l <= l2 then
+                    if l == lno then io.write('*') else io.write(' ') end
+                    print(l,line)
+                end
+                l = l + 1
             end
-            l = l + 1
         end
         io.stderr:write(err,'\n')
         os.exit(1)
     end
-    return res(...)
+    ok,err = xpcall(function(...) return res(...) end, debug.traceback)
+    if not ok then
+        err = err:gsub("%[C%]: in function 'xpcall'.+",'')
+        if li then
+            repeat
+                err,lno = fix_error_trace(err,li)
+            until not lno
+        end
+        io.stderr:write(err,'\n')
+    end
+    return ok
 end
 
 local function subst (ins,name)
@@ -95,16 +151,20 @@ local function subst (ins,name)
         buf[i] = v
         i = i + 1
     end}
-    macro.substitute(ins,outf,name,args.C)
-    return table.concat(buf)
+    local C
+    if args.C then
+        C = args.N and true or 'line'
+    end
+    local line_info = macro.substitute(ins,outf,name,C)
+    return table.concat(buf),line_info
 end
 
 local function subst_runstring (ins,name,...)
-    local buf = subst(ins,name)
+    local buf,li = subst(ins,name)
     if args.d or args.C then
         print(buf)
     else
-        return runstring(buf,name,...)
+        return runstring(buf,name,li,...)
     end
 end
 
@@ -136,7 +196,7 @@ end
 
 local function interactive_loop ()
     os.execute(arg[-1]..' -v') -- for the Lua copyright
-    print 'Lua Macro 2.1 Copyright (C) 2007-2011 Steve Donovan'
+    print 'Lua Macro 2.2 Copyright (C) 2007-2011 Steve Donovan'
 
     local function readline()
         io.write(_PROMPT or '> ')

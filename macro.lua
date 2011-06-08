@@ -565,6 +565,10 @@ end
 -- @param action function to be called when keyword is encountered
 -- @return previous handler associated with this keyword
 function M.keyword_handler (word,action)
+    if word == 'BEGIN' or word == 'END' then
+        keyword_handlers[word] = action
+        return
+    end
     if keywords[word] and keywords[word] ~= 'hook' then return end
     if action then
         keywords[word] = 'hook'
@@ -609,6 +613,19 @@ function M.assert(expr,msg)
     if not expr then M.error(msg or 'internal error') end
 end
 
+local line_updater, line_table
+
+local function lua_line_updater (iline,oline)
+    if not line_table then line_table = {} end
+    append(line_table,{il=iline,ol=oline})
+end
+
+local function c_line_updater (iline,oline,out,last_t,last_v)
+    local endt = last_t == 'space' and last_v or '\n'
+    out:write('#line '..iline..' "'..M.filename..'"'..endt)
+end
+
+
 --- Do a macro substitution on Lua source.
 -- @param src Lua source (either string or file-like reader)
 -- @param out output (a file-like writer)
@@ -617,14 +634,24 @@ function M.substitute(src,out,name, use_c)
         lexer = require 'macro.clexer'
         scan_code = lexer.scan_c
         keywords = c_keywords
+        if use_c == 'line' then
+            line_updater = c_line_updater
+        else
+            line_updater = function() end
+        end
     else
         lexer = require 'macro.lexer'
         scan_code = lexer.scan_lua
         keywords = lua_keywords
+        line_updater = lua_line_updater
     end
     local tok = scan_code(src,name)
+    local iline,iline_changed = 0
+    local last_t,last_v = 'space','\n'
 
     M.filename = name or '(tmp)'
+
+    local t,v = tok()
 
     -- this function get() is always used, so that we can handle end-of-stream properly.
     -- The substitution mechanism pushes a new stream on the tstack, which is popped
@@ -633,11 +660,16 @@ function M.substitute(src,out,name, use_c)
     local push,pop = table.insert,table.remove
 
     local function get ()
+        last_t,last_v = t,v
         local t,v = tok()
         while not t do
             tok = pop(tstack)
             if tok == nil then return nil end -- finally finished
             t,v = tok()
+        end
+        if name == lexer.name and iline ~= lexer.line  then
+            iline = lexer.line -- input line has changed
+            iline_changed = last_v
         end
         return t,v
     end
@@ -693,13 +725,16 @@ function M.substitute(src,out,name, use_c)
         return pass_through
     end
 
-    local t,v = tok()
-    local last_t,last_v
+
     local multiline_tokens,sync = lexer.multiline_tokens,lexer.sync
-    local line,last_diff = 1,0
+    local line,last_diff = 0,0
 
     function M.last_token()
         return last_t,last_v
+    end
+
+    if keyword_handlers.BEGIN then
+        keyword_handlers.BEGIN()
     end
 
     while t do
@@ -742,22 +777,27 @@ function M.substitute(src,out,name, use_c)
             end
         end
         if dump then
-            out:write(v)
-            if multiline_tokens[t] then
+            if multiline_tokens[t] then -- track output line
                 line = sync(line, v)
-                if M.filename == lexer.name then
-                    local diff = line - lexer.line
-                    if diff ~= last_diff then
-                        --print(line,lexer.line)
-                        last_diff = diff
-                    end
-                end
             end
+            if iline_changed then
+                local diff = line - iline
+                if diff ~= last_diff then
+                    line_updater(iline,line,out,last_t,last_v)
+                    last_diff = diff
+                end
+                iline_changed = nil
+            end
+            out:write(v)
         end
-        last_t,last_v = t,v
+       -- last_t,last_v = t,v
         t,v = get()
     end
 
+    if keyword_handlers.END then
+        keyword_handlers.END()
+    end
+    return line_table
 end
 
 --- take some Lua source and return the result of the substitution.

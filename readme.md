@@ -404,6 +404,61 @@ A more elaborate experiment is `cskin.lua` in the tests directory. This translat
        t = {a,b}
     }
 
+### Preprocessing C
+
+With the 2.2 release, LuaMacro can preprocess C files, by the inclusion of a C Lpeg lexer based on work by Peter Odding. This may seem a semi-insane pursuit, given that C already has a preprocessor, (which is widely considered a misfeature.)  However, the macros we are talking about are clever, they can maintain state, and can be scoped lexically.
+
+One of the irritating things about C is the need to maintain separate include files. It would be better if we could write a module like this:
+
+
+    // dll.c
+    #include "dll.h"
+
+    export {
+        typedef struct {
+            int ival;
+        } MyStruct;
+    }
+
+    export int one(MyStruct *ms) {
+        return ms->ival + 1
+    }
+
+    export int two(MyStruct *ms) {
+        return 2*ms->ival;
+    }
+
+and have the preprocessor generate an apppropriate header file:
+
+
+    #ifndef DLL_H
+    #define DLL_H
+    typedef struct {
+            int ival;
+        } MyStruct;
+
+    int one(MyStruct *ms) ;
+    int two(MyStruct *ms) ;
+    #endif
+
+The macro `export` is straightforward:
+
+
+    M.define('export',function(get)
+        local t,v = get:next()
+        local decl,out
+        if v == '{' then
+            decl = tostring(get:upto '}')
+            f:write(decl,'\n')
+        else
+            decl = v .. ' ' .. tostring(get:upto '{')
+            f:write(decl,';\n')
+            out = decl .. '{'
+        end
+        return out
+    end)
+
+It looks ahead and if it finds a `{}` block it writes it wholesale to a file stream; otherwise writes everything upto a block opening.
 
 ### Implementation
 
