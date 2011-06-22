@@ -135,9 +135,9 @@ function M.get_upto(tok,k1,k2)
     if type(k1) == 'string' and k1:match '^%a+$' then
         endt = M.upto_keywords(k1,k2)
     end
-    local ltl = M.get_list(tok,endt,'')
+    local ltl,tok = M.get_list(tok,endt,'')
     M.assert(ltl ~= nil and #ltl > 0,'failed to grab tokens')
-    return ltl[1]
+    return ltl[1],tok
 end
 
 function M.tnext(get)
