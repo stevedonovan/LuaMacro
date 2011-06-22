@@ -631,7 +631,10 @@ end
 -- @param out output (a file-like writer)
 -- @param name input file name
 -- @param use_c nil for Lua; if 'line', then output #line directives; if true, then don't
-function M.substitute(src,out,name, use_c)
+-- @return the result as table of strings
+-- @return line number information
+function M.substitute(src,name, use_c)
+    local out, ii = {}, 1
     if use_c then
         lexer = require 'macro.clexer'
         scan_code = lexer.scan_c
@@ -786,12 +789,13 @@ function M.substitute(src,out,name, use_c)
                 local diff = line - iline
                 if diff ~= last_diff then
                     local ldir = line_updater(iline,line,last_t,last_v)
-                    if ldir then out:write(ldir) end
+                    if ldir then out[ii] = ldir; ii=ii+1 end
                     last_diff = diff
                 end
                 iline_changed = nil
             end
-            out:write(v)
+            out[ii] = v
+            ii = ii + 1
         end
         t,v = get()
     end
@@ -799,7 +803,7 @@ function M.substitute(src,out,name, use_c)
     if keyword_handlers.END then
         keyword_handlers.END()
     end
-    return line_table
+    return out,line_table
 end
 
 --- take some Lua source and return the result of the substitution.
@@ -810,18 +814,11 @@ end
 -- @return the error, if error
 function M.substitute_tostring(src,name,use_c)
     M.please_throw = true
-    local buf,k = {},1
-    local out = {
-        write = function(self,v)
-            buf[k] = v
-            k = k + 1
-        end
-    }
-    local ok,res = pcall(M.substitute,src,out,name,use_c)
+    local ok,out,li = pcall(M.substitute,src,name,use_c)
     if type(src) ~= 'string' and src.close then src:close() end
-    if not ok then return nil, res
+    if not ok then return nil, out
     else
-        return table.concat(buf), res
+        return table.concat(out), li
     end
 end
 
