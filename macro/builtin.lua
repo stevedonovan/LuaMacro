@@ -122,8 +122,11 @@ end)
 --- Load a Lua module immediately. This allows macro definitions to
 -- to be loaded before the rest of the file is parsed.
 -- @macro require_
-M.define('require_',function(get)
-    require(get:string())
+M.define('require_',function(get,put)
+    local fn = require(get:string())
+    if type(fn) == 'function' then
+        return fn(put)
+    end
 end)
 
 --- Include the contents of a file. This inserts the file directly
