@@ -371,7 +371,7 @@ M.Putter = make_putter
 -- given a token list, a set of formal arguments and the actual arguments,
 -- return a new token list where the formal arguments have been replaced
 -- by the actual arguments
-local function substitute (tl,parms,args)
+local function substitute_tokenlist (tl,parms,args)
     local append,put_tokens = table.insert,M.put_tokens
     local parm_map = {}
     for i,name in ipairs(parms) do
@@ -716,7 +716,7 @@ function M.substitute(src,out,name, use_c)
                 if #mac.parms ~= #args then
                     M.error(mac.name.." takes "..#mac.parms.." arguments")
                 end
-                subst = substitute(subst,mac.parms,args)
+                subst = substitute_tokenlist(subst,mac.parms,args)
             end
         elseif fun then
             subst,pass_through = subst(make_getter(get),make_putter())
@@ -806,7 +806,7 @@ end
 -- @param name optional name for the chunk
 -- @return the result or nil
 -- @return the error, if error
-function M.substitute_tostring(src,name)
+function M.substitute_tostring(src,name,use_c)
     M.please_throw = true
     local buf,k = {},1
     local out = {
@@ -815,11 +815,11 @@ function M.substitute_tostring(src,name)
             k = k + 1
         end
     }
-    local res,err = pcall(M.substitute,src,out,name)
+    local ok,res = pcall(M.substitute,src,out,name,use_c)
     if type(src) ~= 'string' and src.close then src:close() end
-    if not res then return nil,err
+    if not ok then return nil, res
     else
-        return table.concat(buf)
+        return table.concat(buf), res
     end
 end
 

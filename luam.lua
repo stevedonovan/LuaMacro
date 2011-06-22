@@ -146,21 +146,19 @@ local function runstring (code,name,li,...)
 end
 
 local function subst (ins,name)
-    local buf,i = {},1
-    local outf = {write = function(self,v)
-        buf[i] = v
-        i = i + 1
-    end}
     local C
     if args.C then
         C = args.N and true or 'line'
     end
-    local line_info = macro.substitute(ins,outf,name,C)
-    return table.concat(buf),line_info
+    return macro.substitute_tostring(ins,name,C)
 end
 
 local function subst_runstring (ins,name,...)
     local buf,li = subst(ins,name)
+    if not buf then
+        io.stderr:write(li,'\n')
+        os.exit(1)
+    end
     if args.d or args.C then
         print(buf)
     else
