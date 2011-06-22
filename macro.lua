@@ -620,15 +620,17 @@ local function lua_line_updater (iline,oline)
     append(line_table,{il=iline,ol=oline})
 end
 
-local function c_line_updater (iline,oline,out,last_t,last_v)
+local function c_line_updater (iline,oline,last_t,last_v)
     local endt = last_t == 'space' and last_v or '\n'
-    out:write('#line '..iline..' "'..M.filename..'"'..endt)
+    return '#line '..iline..' "'..M.filename..'"'..endt
 end
 
 
 --- Do a macro substitution on Lua source.
 -- @param src Lua source (either string or file-like reader)
 -- @param out output (a file-like writer)
+-- @param name input file name
+-- @param use_c nil for Lua; if 'line', then output #line directives; if true, then don't
 function M.substitute(src,out,name, use_c)
     if use_c then
         lexer = require 'macro.clexer'
@@ -783,14 +785,14 @@ function M.substitute(src,out,name, use_c)
             if iline_changed then
                 local diff = line - iline
                 if diff ~= last_diff then
-                    line_updater(iline,line,out,last_t,last_v)
+                    local ldir = line_updater(iline,line,last_t,last_v)
+                    if ldir then out:write(ldir) end
                     last_diff = diff
                 end
                 iline_changed = nil
             end
             out:write(v)
         end
-       -- last_t,last_v = t,v
         t,v = get()
     end
 
