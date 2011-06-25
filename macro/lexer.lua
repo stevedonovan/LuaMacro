@@ -160,7 +160,7 @@ function lexer.scan_lua(input,name)
         input = input:read('*a')
     end
     local tokens = lexer.scan_lua_tokenlist(input)
-    local i = 1
+    local i, n = 1, #tokens
     return function()
         local tok = tokens[i]
         i = i + 1
@@ -169,6 +169,11 @@ function lexer.scan_lua(input,name)
             lexer.name = name
             return tok[1],tok[2]
         end
+    end,
+    function(k)
+        k = i + k
+        if k < 1 or k > n then return nil end
+        return tokens[k]
     end
 end
 

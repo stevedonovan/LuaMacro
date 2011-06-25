@@ -650,7 +650,7 @@ function M.substitute(src,name, use_c)
         keywords = lua_keywords
         line_updater = lua_line_updater
     end
-    local tok = scan_code(src,name)
+    local tok,tokn = scan_code(src,name)
     local iline,iline_changed = 0
     local last_t,last_v = 'space','\n'
 
@@ -675,6 +675,23 @@ function M.substitute(src,name, use_c)
         if name == lexer.name and iline ~= lexer.line  then
             iline = lexer.line -- input line has changed
             iline_changed = last_v
+        end
+        return t,v
+    end
+
+    local getter = make_getter(get)
+
+    function getter:peek (k,dont_skip)
+        k = k - 1
+        local tok = tokn(k)
+        local t,v = tok[1], tok[2]
+        if not dont_skip then
+            local skip = k < 0 and -1 or 1
+            while t == 'space' do
+                k = k + skip
+                tok = tokn(k)
+                t,v = tok[1], tok[2]
+            end
         end
         return t,v
     end
@@ -724,7 +741,7 @@ function M.substitute(src,name, use_c)
                 subst = substitute_tokenlist(subst,mac.parms,args)
             end
         elseif fun then
-            subst,pass_through = subst(make_getter(get),make_putter())
+            subst,pass_through = subst(getter,make_putter())
         end
         push_substitution(subst)
         return pass_through
@@ -734,9 +751,6 @@ function M.substitute(src,name, use_c)
     local multiline_tokens,sync = lexer.multiline_tokens,lexer.sync
     local line,last_diff = 0,0
 
-    function M.last_token()
-        return last_t,last_v
-    end
 
     if keyword_handlers.BEGIN then
         keyword_handlers.BEGIN()
@@ -762,7 +776,7 @@ function M.substitute(src,name, use_c)
                 end
             elseif class == 'hook' then
                 local action = keyword_handlers[v]
-                push_substitution(action(make_getter(get),make_putter()))
+                push_substitution(action(getter,make_putter()))
             end
         else -- any unused 'operator' token (like @, \, #) can be used as a macro
             if use_c then

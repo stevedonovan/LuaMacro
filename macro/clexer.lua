@@ -147,7 +147,7 @@ function clexer.scan_c(input,name)
         input = input:read('*a')
     end
     local tokens = clexer.scan_c_tokenlist(input)
-    local i = 1
+    local i, n = 1, #tokens
     return function()
         local tok = tokens[i]
         i = i + 1
@@ -156,7 +156,13 @@ function clexer.scan_c(input,name)
             clexer.name = name
             return tok[1],tok[2]
         end
+    end,
+    function(k)
+        k = i + k
+        if k < 1 or k > n then return nil end
+        return tokens[k]
     end
+
 end
 
 return clexer
