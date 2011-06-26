@@ -7,10 +7,10 @@ local M = require 'macro'
 local function macro_def (scoped)
     return function (get)
         local t,name,parms,openp
-        local t,name = M.tnext(get)
+        local t,name = get:next()
         local upto,ret
         if t == '(' then
-            t,name = M.tnext(get)
+            t,name = get:next()
             upto = function(t,v) return t == ')' end
         else
             upto = function(t,v)
@@ -22,12 +22,12 @@ local function macro_def (scoped)
         -- might be immediately followed by a parm list
         t,openp = get()
         if openp == '(' then
-            parms = M.get_names(get)
+            parms = get:names()
         end
         -- the actual substitution is up to the end of the line
         local args = M.copy_tokens(get,upto)
         if scoped then
-            M.set_scoped_macro(name,args,parms)
+            M.define_scoped(name,args,parms)
         else
             M.set_macro(name,args,parms)
         end
@@ -125,7 +125,7 @@ end)
 M.define('require_',function(get,put)
     local fn = require(get:string())
     if type(fn) == 'function' then
-        return fn(put)
+        return fn(get,put)
     end
 end)
 

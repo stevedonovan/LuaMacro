@@ -129,33 +129,53 @@ local function scan_iter (tlist)
     end
 end
 
+--- Getter class
+-- @type Getter
 
-function M.get_upto(tok,k1,k2)
+local Getter = {
+    __call = function(self)
+        return self.fun()
+    end
+}
+Getter.__index = Getter;
+
+local function make_getter (get)
+    return setmetatable({fun=get},Getter)
+end
+
+function M.Getter(tl)
+    return make_getter(scan_iter(tl))
+end
+
+Getter.list = M.get_list
+
+function Getter.upto(tok,k1,k2)
     local endt = k1
     if type(k1) == 'string' and k1:match '^%a+$' then
         endt = M.upto_keywords(k1,k2)
     end
-    local ltl,tok = M.get_list(tok,endt,'')
+    local ltl,tok = tok:list(endt,'')
     M.assert(ltl ~= nil and #ltl > 0,'failed to grab tokens')
     return ltl[1],tok
 end
 
-function M.tnext(get)
+local function tnext(get)
     local t,v = get()
     while t == 'space' or t == 'comment' do
         t,v = get()
     end
     return t,v
 end
-local tnext = M.tnext
 
-function M.get_name(tok)
+Getter.next = tnext
+
+function Getter.name(tok)
     local t,v = tnext(tok)
     M.assert(t == 'iden','expecting name')
     return v
 end
 
-function M.get_number(tok)
+function Getter.number(tok)
     local t,v = tnext(tok)
     M.assert(t == 'number','expecting number')
     return tonumber(v)
@@ -167,8 +187,8 @@ end
 -- @param endt the end token (default ')')
 -- @param delim the delimiter (default ',')
 -- @see get_list
-function M.get_names(tok,endt,delim)
-    local ltl,err = M.get_list(tok,endt,delim)
+function Getter.names(tok,endt,delim)
+    local ltl,err = tok:list(endt,delim)
     if not ltl then error('get_names: '..err) end
     local names = {}
     -- get_list() will return {{}} for an empty list of tlists
@@ -181,14 +201,14 @@ end
 
 --- get the next string from the token stream.
 -- Will skip space.
-function M.get_string(tok)
-    local t,v = M.expecting(tok,"string")
+function Getter.string(tok)
+    local t,v = tok:expecting("string")
     return v:sub(2,-2)
 end
 
 --- assert that the next token has the given type.
 -- @param type a token type ('iden','string',etc)
-function M.expecting (tok,type,value)
+function Getter.expecting (tok,type,value)
     local t,v = tnext(tok)
     if t ~= type then M.error ("expected "..type.." got "..t) end
     if value then
@@ -197,31 +217,6 @@ function M.expecting (tok,type,value)
     return t,v
 end
 
-local Getter = {
-    string = M.get_string,
-    names = M.get_names,
-    list = M.get_list,
-    next = M.tnext,
-    name = M.get_name,
-    number = M.get_number,
-    upto = M.get_upto,
-    expecting = M.expecting
-}
-
-local GetterMT = {
-    __index = Getter,
-    __call = function(self)
-        return self.fun()
-    end
-}
-
-local function make_getter (get)
-    return setmetatable({fun=get},GetterMT)
-end
-
-function M.Getter(tl)
-    return make_getter(scan_iter(tl))
-end
 
 local function extract (tl)
     local tk = tl[1]
@@ -434,7 +429,7 @@ function M.define(macstr,subst_fn)
     end
     t = tok()
     if t == '(' then
-        parms = M.get_names(tok)
+        parms = make_getter(tok):names()
     end
     mtbl[macname] = {
         name = macname,
@@ -443,6 +438,11 @@ function M.define(macstr,subst_fn)
     }
 end
 
+--- define a macro using a function and a parameter list.
+-- @param name either an identifier or an operator.
+-- @param subst a function
+-- @param parms a list of parameter names
+-- @return the existing value of this macro, if any
 function M.set_macro(name,subst,parms)
     local macros
     if name:match '^[_%a][_%w]*$' then
@@ -466,7 +466,13 @@ function M.set_macro(name,subst,parms)
     return last
 end
 
-function M.set_scoped_macro (name,subst,parms)
+--- defined a scoped macro. Like define except this macro will not
+-- be visible outside the current scope.
+-- @param name either an identifier or an operator.
+-- @param subst a function
+-- @param parms a list of parameter names
+-- @see set_macro
+function M.define_scoped (name,subst,parms)
     local old_value = M.set_macro(name,subst,parms)
     M.block_handler(-1,function()
         M.set_macro(name,old_value)
@@ -569,27 +575,32 @@ function M.keyword_handler (word,action)
         keyword_handlers[word] = action
         return
     end
-    if keywords[word] and keywords[word] ~= 'hook' then return end
     if action then
-        keywords[word] = 'hook'
         local last = keyword_handlers[word]
         keyword_handlers[word] = action
         return last
     else
         keyword_handlers[word] = nil
-        keywords[word] = nil
     end
+end
+
+--- set a scoped keyword handler. Like keyword_handler, except
+-- it restores the original keyword handler (if any) at the end
+-- of the current block.
+-- @param word keyword
+-- @param action to be called when keyword is encountered
+-- @see keyword_handler
+function M.scoped_keyword_handler (keyword, action)
+    local last = M.keyword_handler(keyword,action)
+    M.block_handler(-1,function()
+        M.keyword_handler(keyword,last)
+    end)
 end
 
 -- a convenient way to use keyword handlers. This sets a handler and restores
 -- the old handler at the end of the current block.
 function M.make_scoped_handler(keyword,handler)
-    return function()
-        local last = M.keyword_handler(keyword,handler)
-        M.block_handler(-1,function()
-            M.keyword_handler(keyword,last)
-        end)
-    end
+    return function() M.scoped_keyword_handler(keyword, action) end
 end
 
 M.please_throw = false
@@ -653,6 +664,7 @@ function M.substitute(src,name, use_c)
     local tok,tokn = scan_code(src,name)
     local iline,iline_changed = 0
     local last_t,last_v = 'space','\n'
+    local do_action
 
     M.filename = name or '(tmp)'
 
@@ -669,7 +681,14 @@ function M.substitute(src,name, use_c)
         local t,v = tok()
         while not t do
             tok = pop(tstack)
-            if tok == nil then return nil end -- finally finished
+            if tok == nil then
+                if keyword_handlers.END then
+                    do_action(keyword_handlers.END)
+                    keyword_handlers.END = nil
+                else
+                    return nil
+                end
+            end -- finally finished
             t,v = tok()
         end
         if name == lexer.name and iline ~= lexer.line  then
@@ -681,6 +700,13 @@ function M.substitute(src,name, use_c)
 
     local getter = make_getter(get)
 
+    --- peek ahead or before in the token stream.
+    -- @param k positive delta for looking ahead, negative for looking behind.
+    -- @param dont_skip true if you want to check for whitespace
+    -- @return the token type
+    -- @return the token value
+    -- @return the token offset
+    -- @member Getter
     function getter:peek (k,dont_skip)
         k = k - 1
         local tok = tokn(k)
@@ -693,7 +719,36 @@ function M.substitute(src,name, use_c)
                 t,v = tok[1], tok[2]
             end
         end
-        return t,v
+        return t,v,k+1
+    end
+
+    --- peek ahead two tokens.
+    -- @return first token type
+    -- @return first token value
+    -- @return second token type
+    -- @return second token value
+    -- @member Getter
+    function getter:peek2 ()
+        local t1,v1,k1 = self:peek(1)
+        local t2,v2 = self:peek(k1+1)
+        return t1,v1,t2,v2
+    end
+
+    --- patch the token stream at the end.
+    -- @param idx index in output table
+    -- @param text to replace value at that index
+    -- @member Getter
+    function getter:patch (idx,text)
+        out[idx] = text
+    end
+
+    --- put out a placeholder for later patching.
+    -- @param put a putter object
+    -- @return an index into the output table
+    -- @member Getter
+    function getter:placeholder (put)
+        put:name '/MARK?/'
+        return ii
     end
 
     -- this feeds the results of a substitution into the token stream.
@@ -752,8 +807,13 @@ function M.substitute(src,name, use_c)
     local line,last_diff = 0,0
 
 
+
+    function do_action (action)
+        push_substitution(action(getter,make_putter()))
+    end
+
     if keyword_handlers.BEGIN then
-        keyword_handlers.BEGIN()
+        do_action(keyword_handlers.BEGIN)
     end
 
     while t do
@@ -774,10 +834,10 @@ function M.substitute(src,name, use_c)
                     local res = process_block_handlers(level,get,v)
                     if res then push_substitution(res) end
                 end
-            elseif class == 'hook' then
-                local action = keyword_handlers[v]
-                push_substitution(action(getter,make_putter()))
+            --* elseif class == 'hook' then
             end
+            local action = keyword_handlers[v]
+            if action then do_action(action) end
         else -- any unused 'operator' token (like @, \, #) can be used as a macro
             if use_c then
                 if v == '{' then
@@ -814,9 +874,6 @@ function M.substitute(src,name, use_c)
         t,v = get()
     end
 
-    if keyword_handlers.END then
-        keyword_handlers.END()
-    end
     return out,line_table
 end
 

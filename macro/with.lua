@@ -1,7 +1,7 @@
 local M = require 'macro'
 
 M.define('with',function(get,put)
-  M.set_scoped_macro('.',function()
+  M.define_scoped('.',function()
     local lt,lv = get:peek(-1,true) --  peek before the period...
     if lt ~= 'iden' and lt ~= ']' then
       return '_var.'
