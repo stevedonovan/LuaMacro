@@ -1,5 +1,5 @@
 -- similar syntax to tests.bat, but more portable and aware of errors.
-require_ 'macro.forall'
+require_ 'forall'
 require_ 'qw'
 def_ put io.stderr:write
 
@@ -13,9 +13,10 @@ function run (f)
   end
 end
 
-forall f in qw(dollar,lambda,try,block,forall,scope,do,const,with,case) do
+forall f in qw(dollar,lambda,try,block,forall,scope,do,const,with,case,mod) do
   f = 'test-'..f..'.lua'
   run(f)
 end
 
 run '-lcskin test-cskin.lua'
+
