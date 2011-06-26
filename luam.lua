@@ -234,6 +234,8 @@ if args.e ~= '' then
 else
     if args.input then
         arg = args
+        arg[0] = args.input_name
+        arg[-1] = 'luam'
         subst_runstring(args.input,args.input_name,unpack(args))
     elseif args.i then
         interactive_loop()
