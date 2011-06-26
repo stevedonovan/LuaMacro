@@ -81,7 +81,7 @@ local function lookup_line (lno,li)
             return li[i].il + (lno - li[i].ol) - 1
         end
     end
-    return
+    return li[#li].il + lno - 1
 end
 
 -- iterating over all lines in a string can be awkward;
@@ -106,7 +106,7 @@ local function fix_error_trace (err,li)
         lno = tonumber(lno)
         if li then
             ino = lookup_line(lno,li)
-            err = err:gsub('%[string "%S+"%]:'..lno..':',strname..':'..ino)
+            err = err:gsub('%[string "%S+"%]:'..(lno or '?')..':',strname..':'..(ino or '?'))
         end
     end
     return err,lno,ino
