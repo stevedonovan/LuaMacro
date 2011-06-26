@@ -13,7 +13,7 @@ function run (f)
   end
 end
 
-forall f in qw(dollar,lambda,try,block,forall,scope,do,const,with,case,mod) do
+forall f in qw(dollar,lambda,try,block,forall,scope,do,const,with,case,mod,test) do
   f = 'test-'..f..'.lua'
   run(f)
 end
