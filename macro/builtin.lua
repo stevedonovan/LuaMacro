@@ -79,10 +79,10 @@ M.define '_END_END_ _END_ " end"'
 M.define '_END_CLOSE_ _END_ ")"'
 
 --- 'stringizing' macro.
--- Will convert a token of any type into a string.
+-- Will convert its argument into a string.
 -- @macro _STR_
 M.define('_STR_(x)',function(x)
-    x = x:iden()
+    x = tostring(x)
     local put = M.Putter()
     return put '"':name(x) '"'
 end)
