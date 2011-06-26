@@ -5,7 +5,9 @@
 -- allows for macros that can read their own input and generate output using Lua code.
 -- New in this release are lexically-scoped macros.
 -- The Lua Lpeg Lexer is by Peter Odding.
--- Steve Donovan, 2011
+-- @author Steve Donovan
+-- @copyright 2011
+-- @license MIT/X11
 -- @module macro
 -- @alias M
 
@@ -15,7 +17,6 @@ local lexer = require 'macro.lexer'
 local scan_code = lexer.scan_lua
 local append = table.insert
 local setmetatable = setmetatable
-
 
 local TokenList = {}
 TokenList.__index = TokenList
@@ -167,14 +168,24 @@ local function tnext(get)
     return t,v
 end
 
+--- get the next non-whitespace token.
+-- @return token type
+-- @return token value
+-- @function Getter.next
 Getter.next = tnext
 
+--- get the next identifier token.
+-- (will be an error if the token has wrong type)
+-- @return name
 function Getter.name(tok)
     local t,v = tnext(tok)
     M.assert(t == 'iden','expecting name')
     return v
 end
 
+--- get the next number token.
+-- (will be an error if the token has wrong type)
+-- @return converted number
 function Getter.number(tok)
     local t,v = tnext(tok)
     M.assert(t == 'number','expecting number')
@@ -199,8 +210,9 @@ function Getter.names(tok,endt,delim)
     return names
 end
 
---- get the next string from the token stream.
--- Will skip space.
+--- get the next string token.
+-- (will be an error if the token has wrong type)
+-- @return string value (without quotes)
 function Getter.string(tok)
     local t,v = tok:expecting("string")
     return v:sub(2,-2)
@@ -226,18 +238,24 @@ local function extract (tl)
     return tk
 end
 
+--- get an identifier from front of a token list.
+-- @return name
 function TokenList.get_iden (tl)
     local tk = extract(tl)
     M.assert(tk[1]=='iden','expecting identifier')
     return tk[2]
 end
 
+--- get an number from front of a token list.
+-- @return number
 function TokenList.get_number(tl)
     local tk = extract(tl)
     M.assert(tk[1]=='number','expecting number')
     return tonumber(tk[2])
 end
 
+--- get a string from front of a token list.
+-- @return string value (without quotes)
 function TokenList.get_string(tl)
     local tk = extract(tl)
     M.assert(tk[1]=='string')
@@ -245,6 +263,7 @@ function TokenList.get_string(tl)
 end
 
 --- takes a token list and strips spaces and comments.
+-- @return new tokenlist
 function TokenList.strip_spaces (tl)
     local out = TL()
     for _,t in ipairs(tl) do
@@ -255,6 +274,11 @@ function TokenList.strip_spaces (tl)
     return out
 end
 
+--- pick the n-th token from this tokenlist.
+-- Note that it returns the value and type, not the type and value.
+-- @param n (1 to #self)
+-- @return token value
+-- @return token type
 function TokenList:pick (n)
     local t = self[n]
     return t[2],t[1]
@@ -264,7 +288,11 @@ end
 -- token-putting helpers
 local comma,space = {',',','},{'space',' '}
 
-function M.put_name(res,name,no_space)
+--- append an identifier.
+-- @param name the identifier
+-- @param no_space true if you don't want a space after the iden
+-- @return self
+function TokenList.name(res,name,no_space)
     append(res,{'iden',name})
     if not no_space then
         append(res,space)
@@ -272,12 +300,18 @@ function M.put_name(res,name,no_space)
     return res
 end
 
-function M.put_string(res,name)
+--- append a string.
+-- @param name the string
+-- @return self
+function TokenList.string(res,name)
     append(res,{'string','"'..name..'"'})
     return res
 end
 
-function M.put_number(res,val)
+--- append a number.
+-- @param val the number
+-- @return self
+function TokenList.number(res,val)
     append(res,{'number',val})
     return res
 end
@@ -285,9 +319,10 @@ end
 --- put out a list of names, separated by commas.
 -- @param res output token list
 -- @param names a list of strings
-function M.put_names(res,names)
+-- @return self
+function TokenList.names(res,names)
     for i = 1,#names do
-        M.put_name(res,names[i],true)
+        res:name(names[i],true)
         if i ~= #names then append(res,comma) end
     end
     return res
@@ -296,13 +331,15 @@ end
 --- put out a token list.
 -- @param res output token list
 -- @param names a token list
-function M.put_tokens(res,tl)
+-- @return self
+function TokenList.tokens(res,tl)
     for j = 1,#tl do
         append(res,tl[j])
     end
     return res
 end
 
+--- convert this tokenlist into a string.
 function TokenList.__tostring(tl)
     local res = {}
     for j = 1,#tl do
@@ -314,9 +351,10 @@ end
 --- put out a list of token lists, separated by commas.
 -- @param res output token list
 -- @param names a list of strings
-function M.put_list(res,ltl)
+-- @return self
+function TokenList.list(res,ltl)
     for i = 1,#ltl do
-        M.put_tokens(res,ltl[i])
+        res:tokens(ltl[i])
         if i ~= #ltl then append(res,comma) end
     end
     return res
@@ -325,7 +363,8 @@ end
 --- put out a space token.
 -- @param res output token list
 -- @param space a string containing only whitespace (default ' ')
-function M.put_space(res,space)
+-- @return self
+function TokenList.space(res,space)
     append(res,{'space',space or ' '})
     return res
 end
@@ -333,31 +372,21 @@ end
 --- put out a keyword token.
 -- @param res output token list
 -- @param keyw a Lua keyword
-function M.put_keyword(res,keyw)
+-- @return self
+function TokenList.keyword(res,keyw)
     append(res,{'keyword',keyw})
     append(res,space)
     return res
 end
 
---- put out a operator token.
+--- put out a operator token. This is the overloaded call operator
+-- for token lists.
 -- @param res output token list
 -- @param keyw an operator string
-function M.put(res,t,v)
+function TokenList.__call(res,t,v)
     append(res,{t,v or t})
     return res
 end
-
-TokenList.__call = function(obj,...)
-    return M.put(obj,...)
-end
-TokenList.keyword = M.put_keyword
-TokenList.space = M.put_space
-TokenList.list = M.put_list
-TokenList.names = M.put_names
-TokenList.tokens = M.put_tokens
-TokenList.name = M.put_name
-TokenList.string = M.put_string
-TokenList.number = M.put_number
 
 local make_putter = TL
 
@@ -367,7 +396,7 @@ M.Putter = make_putter
 -- return a new token list where the formal arguments have been replaced
 -- by the actual arguments
 local function substitute_tokenlist (tl,parms,args)
-    local append,put_tokens = table.insert,M.put_tokens
+    local append,put_tokens = table.insert,TokenList.tokens
     local parm_map = {}
     for i,name in ipairs(parms) do
         parm_map[name] = args[i]
@@ -388,6 +417,10 @@ local function substitute_tokenlist (tl,parms,args)
     end
     return res
 end
+
+----------------
+-- Defining and Working with Macros.
+-- @section macros
 
 function M.copy_tokens(tok,pred)
     local res = {}
@@ -503,12 +536,18 @@ end
 
 local push,pop = table.insert,table.remove
 
+--- push a value on the stack associated with a macro.
+-- @param name macro name
+-- @param value any value
 function M.push_macro_stack (name,value)
     local macro = get_macro(name)
     macro.stack = macro.stack or {}
     push(macro.stack,value)
 end
 
+--- pop a value from a macro stack.
+-- @param name macro name
+-- @return any value, if defined
 function M.pop_macro_stack (name)
     local macro = get_macro(name)
     if macro.stack and #macro.stack > 0 then
@@ -516,6 +555,9 @@ function M.pop_macro_stack (name)
     end
 end
 
+--- value of top of macro stack.
+-- @param name macro name
+-- @return any value, if defined
 function M.value_of_macro_stack (name)
     local macro = get_macro(name,true)
     if not macro then return nil end
@@ -537,6 +579,11 @@ local block_handlers,keyword_handlers = {},{}
 local level = 1
 
 --- specify a block handler at a given level.
+-- a block handler may indicate with an extra true return
+-- that it wants to persist; it is passed the getter and the keyword
+-- so we can get more specific end-of-block handlers.
+-- @param lev relative block level
+-- @param action will be called when the block reaches the level
 function M.block_handler (lev,action)
     lev = lev + level
     if not block_handlers[lev] then
@@ -547,9 +594,6 @@ end
 
 local function process_block_handlers(level,get,v)
     local persist,result
-    -- a block handler may indicate with an extra true return
-    -- that it wants to persist; the keyword is passed to them
-    -- so we can get more specific end of block handlers.
     for _,bh in pairs(block_handlers[level]) do
         local res,keep = bh(get,v)
         if not keep then
@@ -599,12 +643,17 @@ end
 
 -- a convenient way to use keyword handlers. This sets a handler and restores
 -- the old handler at the end of the current block.
+-- @param word keyword
+-- @param action to be called when keyword is encountered
+-- @return a function that creates a scoped keyword handler
 function M.make_scoped_handler(keyword,handler)
     return function() M.scoped_keyword_handler(keyword, action) end
 end
 
 M.please_throw = false
 
+--- Macro error messages.
+-- @param msg the message: will also have file:line.
 function M.error(msg)
     M.please_throw = true
     msg = M.filename..':'..lexer.line..' '..msg
@@ -620,6 +669,9 @@ M.define ('debug_',function()
     M.DEBUG = true
 end)
 
+--- Macro error assert.
+-- @param expr an expression.
+-- @param msg a message
 function M.assert(expr,msg)
     if not expr then M.error(msg or 'internal error') end
 end
@@ -802,11 +854,8 @@ function M.substitute(src,name, use_c)
         return pass_through
     end
 
-
     local multiline_tokens,sync = lexer.multiline_tokens,lexer.sync
     local line,last_diff = 0,0
-
-
 
     function do_action (action)
         push_substitution(action(getter,make_putter()))
@@ -893,10 +942,10 @@ function M.substitute_tostring(src,name,use_c)
     end
 end
 
-local old_loadin = loadin
+local lua52 = _VERSION:match '5.2'
 local loadin
 
-if not old_loadin then -- Lua 5.1
+if not lua52 then -- Lua 5.1
     function loadin (env,src,name)
         local chunk,err = loadstring(src,name)
         if chunk and env then
@@ -906,24 +955,22 @@ if not old_loadin then -- Lua 5.1
     end
 else -- Lua 5.2
     function loadin(env,src,name)
-        local chunk,err
         if env then
-            chunk,err = old_loadin(env,src,name)
+            return load(src,name,'t',env)
         else
-            chunk,err = load(src,name)
+            return load(src,name)
         end
-        return chunk,err
     end
 end
 
 --- load Lua code in a given envrionment after passing
 -- through the macro preprocessor.
--- @param env the environment (may be nil)
 -- @param src either a string or a readable file object
 -- @param name optional name for the chunk
+-- @param env the environment (may be nil)
 -- @return the cnunk, or nil
 -- @return the error, if no chunk
-function M.loadin(env,src,name)
+function M.load(src,name,env)
     local res,err = M.substitute_tostring(src)
     if not res then return nil,err end
     return loadin(env,res,name)
@@ -935,7 +982,7 @@ end
 -- @return true if succeeded
 -- @return result(s)
 function M.eval(src,env)
-    local chunk,err = M.loadin(env,src,'(tmp)')
+    local chunk,err = M.loadin(src,'(tmp)',env)
     if not chunk then return nil,err end
     return pcall(chunk)
 end
@@ -948,7 +995,7 @@ function M.set_package_loader(ext)
         local lname = name:gsub("%.", "/") .. '.'..ext
         local f,err = io.open(lname)
         if not f then return nil,err end
-        return M.loadin(nil,f,lname)
+        return M.load(f,lname)
     end)
 end
 
