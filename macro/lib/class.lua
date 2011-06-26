@@ -13,7 +13,7 @@ return function (base)
   function cmt:__call(...)
     local obj = setmetatable({},klass)
     if klass._init then klass._init(obj,...)
-    elseif base._init then base._init(base,...) end
+    elseif base and base._init then base._init(base,...) end
     return obj
   end
   setmetatable(klass,cmt)
