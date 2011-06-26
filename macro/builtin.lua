@@ -123,7 +123,12 @@ end)
 -- to be loaded before the rest of the file is parsed.
 -- @macro require_
 M.define('require_',function(get,put)
-    local fn = require(get:string())
+    local name = get:string()
+    local ok,fn = pcall(require,name)
+    if not ok and name:match '^%a+$' then
+        ok,fn = pcall(require,'macro.'..name)
+        assert(ok,"require_ cannot find "..name)
+    end
     if type(fn) == 'function' then
         return fn(get,put)
     end
