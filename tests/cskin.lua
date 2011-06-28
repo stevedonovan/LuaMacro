@@ -107,7 +107,7 @@ M.define('forall',function (get,put)
     local stuff = get:upto ')'
     get:expecting'{'
     stuff:space():keyword 'do'
-    stuff = fun(M.Getter(stuff),put)
+    stuff = fun(get.from_tl(stuff),put)
     -- let the unskinned Lua pass through with _SKIN_ to re-enable skinning
     disabled = true
     stuff:name '_SKIN_':space()

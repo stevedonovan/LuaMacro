@@ -14,383 +14,17 @@
 local macro = {}
 local M = macro
 local lexer = require 'macro.lexer'
+local Getter = require 'macro.Getter'
+local TokenList = require 'macro.TokenList'
 local scan_code = lexer.scan_lua
 local append = table.insert
 local setmetatable = setmetatable
 
-local TokenList = {}
-TokenList.__index = TokenList
-
-local function TL (tl)
-    return setmetatable(tl or {},TokenList)
-end
-
-local TokenListList = {}
-
-local function LTL (ltl)
-    return setmetatable(ltl or {},TokenListList)
-end
-
-TokenListList.__index = function(self,key)
-    local m = TokenList[key]
-    return function(self,...)
-        local res = {}
-        for i = 1,#self do res[i] = m(self[i],...) end
-        return LTL(res)
-    end
-end
-
--- token-getting helpers
-
---- get a delimited list of token lists.
--- Typically used for grabbing argument lists like ('hello',a+1,fred(c,d)); will count parens
--- so that the delimiter (usually a comma) is ignored inside sub-expressions. You must have
--- already read the start token of the list, e.g. open parentheses. It will eat the end token
--- and return the list of TLs, plus the end token. Based on similar code in Penlight's
--- `pl.lexer` module.
--- @param tok the token stream
--- @param endt the end token (default ')')
--- @param delim the delimiter (default ',')
--- @return list of token lists
--- @return end token in form {type,value}
-function M.get_list(tok,endtoken,delim)
-    endtoken = endtoken or ')'
-    delim = delim or ','
-    local parm_values = LTL()
-    local level = 1 -- used to count ( and )
-    local tl = TL()
-    local function tappend (tl,t,val)
-        val = val or t
-        append(tl,{t,val})
-    end
-    local is_end
-    if type(endtoken) == 'function' then
-        is_end = endtoken
-    elseif endtoken == '\n' then
-        is_end = function(t,val)
-            return t == 'space' and val:find '\n'
-        end
-    else
-        is_end = function (t)
-            return t == endtoken
-        end
-    end
-    local token,value = tok()
-    if is_end(token,value) then return parm_values end
-    if token == 'space' then
-        token,value = tok()
-    end
-    while true do
-        if not token then return nil,'unexpected end of list' end -- end of stream is an error!
-        if is_end(token,value) and level == 1 then
-            append(parm_values,tl)
-            break
-        elseif token == '(' then
-            level = level + 1
-            tappend(tl,'(')
-        elseif token == ')' then
-            level = level - 1
-            if level == 0 then -- finished with parm list
-                append(parm_values,tl)
-                break
-            else
-                tappend(tl,')')
-            end
-        elseif token == '{' then
-            level = level + 1
-            tappend(tl,'{')
-        elseif token == '}' then
-            level = level - 1
-            tappend(tl,'}')
-        elseif token == delim and level == 1 then
-            append(parm_values,tl) -- a new parm
-            tl = TL()
-        else
-            tappend(tl,token,value)
-        end
-        token,value=tok()
-    end
-    return parm_values,{token,value}
-end
-
-function M.upto_keywords (k1,k2)
-    return function(t,v)
-        return t == 'keyword' and (v == k1 or v == k2)
-    end,''
-end
-
--- create a token iterator out of a token list
-local function scan_iter (tlist)
-    local i,n = 1,#tlist
-    return function()
-        local tv = tlist[i]
-        if tv == nil then return nil end
-        i = i + 1
-        return tv[1],tv[2]
-    end
-end
-
---- Getter class
--- @type Getter
-
-local Getter = {
-    __call = function(self)
-        return self.fun()
-    end
-}
-Getter.__index = Getter;
-
-local function make_getter (get)
-    return setmetatable({fun=get},Getter)
-end
-
-function M.Getter(tl)
-    return make_getter(scan_iter(tl))
-end
-
-Getter.list = M.get_list
-
-function Getter.upto(tok,k1,k2)
-    local endt = k1
-    if type(k1) == 'string' and k1:match '^%a+$' then
-        endt = M.upto_keywords(k1,k2)
-    end
-    local ltl,tok = tok:list(endt,'')
-    M.assert(ltl ~= nil and #ltl > 0,'failed to grab tokens')
-    return ltl[1],tok
-end
-
-local function tnext(get)
-    local t,v = get()
-    while t == 'space' or t == 'comment' do
-        t,v = get()
-    end
-    return t,v
-end
-
---- get the next non-whitespace token.
--- @return token type
--- @return token value
--- @function Getter.next
-Getter.next = tnext
-
---- get the next identifier token.
--- (will be an error if the token has wrong type)
--- @return name
-function Getter.name(tok)
-    local t,v = tnext(tok)
-    M.assert(t == 'iden','expecting name')
-    return v
-end
-
---- get the next number token.
--- (will be an error if the token has wrong type)
--- @return converted number
-function Getter.number(tok)
-    local t,v = tnext(tok)
-    M.assert(t == 'number','expecting number')
-    return tonumber(v)
-end
-
---- get a delimited list of names.
--- works like get_list.
--- @param tok the token stream
--- @param endt the end token (default ')')
--- @param delim the delimiter (default ',')
--- @see get_list
-function Getter.names(tok,endt,delim)
-    local ltl,err = tok:list(endt,delim)
-    if not ltl then error('get_names: '..err) end
-    local names = {}
-    -- get_list() will return {{}} for an empty list of tlists
-    for i,tl in ipairs(ltl) do
-        local tv = tl[1]
-        if tv then names[i] = tv[2] end
-    end
-    return names
-end
-
---- get the next string token.
--- (will be an error if the token has wrong type)
--- @return string value (without quotes)
-function Getter.string(tok)
-    local t,v = tok:expecting("string")
-    return v:sub(2,-2)
-end
-
---- assert that the next token has the given type.
--- @param type a token type ('iden','string',etc)
-function Getter.expecting (tok,type,value)
-    local t,v = tnext(tok)
-    if t ~= type then M.error ("expected "..type.." got "..t) end
-    if value then
-        if v ~= value then M.error("expected "..value.." got "..v) end
-    end
-    return t,v
-end
+local scan_iter, tnext = Getter.scan_iter, Getter.next
 
 
-local function extract (tl)
-    local tk = tl[1]
-    if tk[1] == 'space' then
-        tk = tl[2]
-    end
-    return tk
-end
-
---- get an identifier from front of a token list.
--- @return name
-function TokenList.get_iden (tl)
-    local tk = extract(tl)
-    M.assert(tk[1]=='iden','expecting identifier')
-    return tk[2]
-end
-
---- get an number from front of a token list.
--- @return number
-function TokenList.get_number(tl)
-    local tk = extract(tl)
-    M.assert(tk[1]=='number','expecting number')
-    return tonumber(tk[2])
-end
-
---- get a string from front of a token list.
--- @return string value (without quotes)
-function TokenList.get_string(tl)
-    local tk = extract(tl)
-    M.assert(tk[1]=='string')
-    return tk[2]:sub(2,-2) -- watch out! what about long string literals??
-end
-
---- takes a token list and strips spaces and comments.
--- @return new tokenlist
-function TokenList.strip_spaces (tl)
-    local out = TL()
-    for _,t in ipairs(tl) do
-        if t[1] ~= 'comment' and t[1] ~= 'space' then
-            append(out,t)
-        end
-    end
-    return out
-end
-
---- pick the n-th token from this tokenlist.
--- Note that it returns the value and type, not the type and value.
--- @param n (1 to #self)
--- @return token value
--- @return token type
-function TokenList:pick (n)
-    local t = self[n]
-    return t[2],t[1]
-end
-
-
--- token-putting helpers
-local comma,space = {',',','},{'space',' '}
-
---- append an identifier.
--- @param name the identifier
--- @param no_space true if you don't want a space after the iden
--- @return self
-function TokenList.name(res,name,no_space)
-    append(res,{'iden',name})
-    if not no_space then
-        append(res,space)
-    end
-    return res
-end
-
---- append a string.
--- @param name the string
--- @return self
-function TokenList.string(res,name)
-    append(res,{'string','"'..name..'"'})
-    return res
-end
-
---- append a number.
--- @param val the number
--- @return self
-function TokenList.number(res,val)
-    append(res,{'number',val})
-    return res
-end
-
---- put out a list of names, separated by commas.
--- @param res output token list
--- @param names a list of strings
--- @return self
-function TokenList.names(res,names)
-    for i = 1,#names do
-        res:name(names[i],true)
-        if i ~= #names then append(res,comma) end
-    end
-    return res
-end
-
---- put out a token list.
--- @param res output token list
--- @param names a token list
--- @return self
-function TokenList.tokens(res,tl)
-    for j = 1,#tl do
-        append(res,tl[j])
-    end
-    return res
-end
-
---- convert this tokenlist into a string.
-function TokenList.__tostring(tl)
-    local res = {}
-    for j = 1,#tl do
-        append(res,tl[j][2])
-    end
-    return table.concat(res)
-end
-
---- put out a list of token lists, separated by commas.
--- @param res output token list
--- @param names a list of strings
--- @return self
-function TokenList.list(res,ltl)
-    for i = 1,#ltl do
-        res:tokens(ltl[i])
-        if i ~= #ltl then append(res,comma) end
-    end
-    return res
-end
-
---- put out a space token.
--- @param res output token list
--- @param space a string containing only whitespace (default ' ')
--- @return self
-function TokenList.space(res,space)
-    append(res,{'space',space or ' '})
-    return res
-end
-
---- put out a keyword token.
--- @param res output token list
--- @param keyw a Lua keyword
--- @return self
-function TokenList.keyword(res,keyw)
-    append(res,{'keyword',keyw})
-    append(res,space)
-    return res
-end
-
---- put out a operator token. This is the overloaded call operator
--- for token lists.
--- @param res output token list
--- @param keyw an operator string
-function TokenList.__call(res,t,v)
-    append(res,{t,v or t})
-    return res
-end
-
-local make_putter = TL
-
-M.Putter = make_putter
+M.upto_keywords = Getter.upto_keywords
+M.Putter = TokenList.new
 
 -- given a token list, a set of formal arguments and the actual arguments,
 -- return a new token list where the formal arguments have been replaced
@@ -462,7 +96,7 @@ function M.define(macstr,subst_fn)
     end
     t = tok()
     if t == '(' then
-        parms = make_getter(tok):names()
+        parms = Getter.new(tok):names()
     end
     mtbl[macname] = {
         name = macname,
@@ -676,6 +310,10 @@ function M.assert(expr,msg)
     if not expr then M.error(msg or 'internal error') end
 end
 
+Getter.error = M.error
+Getter.assert = M.assert
+TokenList.assert = M.assert
+
 local line_updater, line_table
 
 local function lua_line_updater (iline,oline)
@@ -688,6 +326,7 @@ local function c_line_updater (iline,oline,last_t,last_v)
     return '#line '..iline..' "'..M.filename..'"'..endt
 end
 
+local make_putter = TokenList.new
 
 --- Do a macro substitution on Lua source.
 -- @param src Lua source (either string or file-like reader)
@@ -750,7 +389,7 @@ function M.substitute(src,name, use_c)
         return t,v
     end
 
-    local getter = make_getter(get)
+    local getter = Getter.new(get)
 
     --- peek ahead or before in the token stream.
     -- @param k positive delta for looking ahead, negative for looking behind.
@@ -837,7 +476,7 @@ function M.substitute(src,name, use_c)
             if t ~= '(' then
                 M.error('macro '..mac.name..' expects parameters')
             end
-            local args,err = M.get_list(get)
+            local args,err = Getter.list(get)
             M.assert(args,'no end of argument list')
             if fun then
                 subst = subst(unpack(args))
@@ -932,9 +571,14 @@ end
 -- @param name optional name for the chunk
 -- @return the result or nil
 -- @return the error, if error
-function M.substitute_tostring(src,name,use_c)
+function M.substitute_tostring(src,name,use_c,throw)
     M.please_throw = true
-    local ok,out,li = pcall(M.substitute,src,name,use_c)
+    local ok,out,li
+    if throw then
+        out,li = M.substitute(src,name,use_c)
+    else
+        ok,out,li = pcall(M.substitute,src,name,use_c)
+    end
     if type(src) ~= 'string' and src.close then src:close() end
     if not ok then return nil, out
     else
