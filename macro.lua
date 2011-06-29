@@ -401,12 +401,14 @@ function M.substitute(src,name, use_c)
     function getter:peek (k,dont_skip)
         k = k - 1
         local tok = tokn(k)
+        if not tok then return nil,'EOS' end
         local t,v = tok[1], tok[2]
         if not dont_skip then
             local skip = k < 0 and -1 or 1
             while t == 'space' do
                 k = k + skip
                 tok = tokn(k)
+                if not tok then return nil,'EOS' end
                 t,v = tok[1], tok[2]
             end
         end
