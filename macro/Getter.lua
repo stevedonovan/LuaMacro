@@ -3,6 +3,7 @@
 
 local TokenList = require 'macro.TokenList'
 local append = table.insert
+local setmetatable = setmetatable
 
 local Getter = {
     __call = function(self)
@@ -21,6 +22,16 @@ end
 
 function Getter.from_tl(tl)
     return Getter.new(scan_iter(tl))
+end
+
+local Tok = {
+    __tostring = function(self)
+        return self[2]
+    end
+}
+
+local function tok_new (t)
+    return setmetatable(t,Tok)
 end
 
 -- create a token iterator out of a token list
@@ -118,7 +129,7 @@ function Getter.list(tok,endtoken,delim)
         end
         token,value=tok()
     end
-    return parm_values,{token,value}
+    return parm_values,tok_new{token,value}
 end
 
 function Getter.upto_keywords (k1,k2)
@@ -174,7 +185,7 @@ function Getter.names(tok,endt,delim)
         local tv = tl[1]
         if tv then names[i] = tv[2] end
     end
-    return names
+    return names, err
 end
 
 --- get the next string token.
