@@ -204,14 +204,15 @@ local function interactive_loop ()
     require 'macro.all'
     _G.macro = macro
     macro.define 'quit os.exit()'
+    macro._interactive = true
 
     local line = readline()
     while line do
-        local ok,s = pcall(subst,line..'\n')
-        if not ok then
-            s = s:gsub('.-:%d+:','')
-            print('macro error: '..s)
-        else
+        local s,err = subst(line..'\n')
+        if not s then
+            err = err:gsub('.-:%d+:','')
+            print('macro error: '..err)
+        elseif not s:match '^%s*$' then
             if args.d then print(s) end
             local res = eval(s)
             if not res[1] then
