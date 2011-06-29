@@ -385,7 +385,7 @@ I've deliberately indicated the fields using a dot (a rare case of Visual Basic 
 
     M.define('with',function(get,put)
       M.set_scoped_macro('.',function()
-        local lt,lv = M.last_token() --  peek before the period...
+        local lt,lv = M.peek(-1,true) --  peek before the period...
         if lt ~= 'iden' and lt ~= ']' then
           return '_var.'
         else
@@ -403,6 +403,125 @@ A more elaborate experiment is `cskin.lua` in the tests directory. This translat
     if (a > b) {
        t = {a,b}
     }
+
+### Pass-Through Macros
+
+Normally a macro replaces the name (plus any arguments) with the substitution. It is sometimes useful to pass the name through, but not to push the name into the token stream - otherwise we will get an endless expansion.
+
+    macro.define('fred',function()
+      print 'fred was found'
+      return nil, true
+    end)
+
+This has absolutely no effect on the preprocessed text ('fred' remains 'fred', but has a side-effect. This happens if the substitution function returns a second `true` value.  You can look at the immediate lexical environment with `peek`:
+
+    macro.define('fred',function(get)
+        local t,v = get:peek(1)
+        if t == 'string' then return ...
+    end)
+
+Pass-through macros are useful when each macro corresponds to a Lua variable; they allow such variables to have a dual role.
+
+An example would be Python-style lists. The [Penlight List]() class has the same functionality as the built-in Python list, but does not have any syntactical support:
+
+    > ls = List{10,20,20}
+    > = ls:slice(1,2)
+    {10,20}
+    > ls:slice_assign(1,2,{10,11,20,21})
+    > = ls
+    {10,11,20,21,30}
+
+It would be cool if we could add a little bit of custom syntax to make this more natural.  What we first need is a 'macro factory' which outputs the code to create the lists, and also suitable macros with the same names.
+
+
+    -- list <var-list> [ = <init-list> ]
+    M.define ('list',function(get)
+        get() -- skip space
+        -- 'list' acts as a 'type' followed by a variable list, which may be
+        -- followed by initial values
+        local values
+        local vars,endt = get:names (function(t,v)
+            return t == '=' or (t == 'space' and v:find '\n')
+        end)
+        -- there is an initialization list
+        if endt[1] == '=' then
+            values,endt = get:list '\n'
+        else
+            values = {}
+        end
+        -- build up the initialization list
+        for i,name in ipairs(vars) do
+           M.define_scoped(name,list_check)
+           values[i] = 'List('..tostring(values[i] or '')..')'
+        end
+        local lcal = M._interactive and '' or 'local '
+        local res = lcal..table.concat(vars,',')..' = '..table.concat(values,',')..tostring(endt)
+        return res
+    end)
+
+Note that this is a fairly re-usable pattern; it requires the type constructor (`List` in this case) and a type-specific macro function (`list_check`).
+
+    list a = {1,2,3}
+    list b
+
+becomes
+
+    local a = List({1,2,3})
+    local b = List()
+
+unless we are in interactive mode, where `local` is not appropriate!
+
+Each of these list macro/variables may be used in several ways:
+
+  - directly `a` - no action!
+  - `a[i]` - plain table index
+  - `a[i:j]` - a list slice. Will be `a:slice(i,j)` normally, but must
+  be `a:slice_assign(i,j,RHS)` if on the right-hand side of an assignment.
+
+The substitution function checks these cases by appropriate look-ahead:
+
+    function list_check (get,put)
+        local t,v = get:peek(1)
+        if t ~= '[' then return nil, true end -- pass-through; plain var reference
+        get:expecting '['
+        local args = get:list(']',':')
+        -- it's just plain table access
+        if #args == 1 then return '['..tostring(args[1])..']',true end
+
+        -- two items separated by a colon; use sensible defaults
+        M.assert(#args == 2, "slice has two arguments!")
+        local start,finish = tostring(args[1]),tostring(args[2])
+        if start == '' then start = '1' end
+        if finish == '' then finish = '-1' end
+
+        -- look ahead to see if we're on the left hand side of an assignment
+        if get:peek(1) == '=' then
+           get:next() -- skip '='
+           local rest,eoln = get:upto '\n'
+           rest,eoln = tostring(rest),tostring(eoln)
+           return (':slice_assign(%s,%s,%s)%s'):format(start,finish,rest,eoln),true
+        else
+            return (':slice(%s,%s)'):format(start,finish),true
+        end
+    end
+
+
+    $> luam  -llist -i
+    LuaJIT 2.0.0-beta8 -- Copyright (C) 2005-2011 Mike Pall. http://luajit.org/
+    Lua Macro 2.2 Copyright (C) 2007-2011 Steve Donovan
+    > list a = {'one','two'}
+    > = a:map(\x(x:sub(1,1)))
+    {o,t}
+    > a:append 'three'
+    > a:append 'four'
+    > = a
+    {one,two,three,four}
+    > = a[2:3]
+    {two,three}
+    > = a[2:2] = {'zwei','twee'}
+    {one,zwei,twee,three,four}
+    > = a[1:2]..{'five'}
+    {one,zwei,five}
 
 ### Preprocessing C
 
