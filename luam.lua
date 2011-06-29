@@ -10,7 +10,7 @@ require 'macro.builtin'
 --- Using luam.
 -- @usage follows
 local usage = [[
-LuaMacro 2.2, a Lua macro preprocessor and runner
+LuaMacro 2.3.0, a Lua macro preprocessor and runner
     -l  require a library
     -e  statement to be executed
     -c  error context to be shown (default 2)
@@ -194,7 +194,7 @@ end
 
 local function interactive_loop ()
     os.execute(arg[-1]..' -v') -- for the Lua copyright
-    print 'Lua Macro 2.2 Copyright (C) 2007-2011 Steve Donovan'
+    print 'Lua Macro 2.3.0 Copyright (C) 2007-2011 Steve Donovan'
 
     local function readline()
         io.write(_PROMPT or '> ')

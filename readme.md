@@ -424,6 +424,7 @@ Pass-through macros are useful when each macro corresponds to a Lua variable; th
 
 An example would be Python-style lists. The [Penlight List]() class has the same functionality as the built-in Python list, but does not have any syntactical support:
 
+    > List = require 'pl.List'
     > ls = List{10,20,20}
     > = ls:slice(1,2)
     {10,20}
@@ -432,7 +433,6 @@ An example would be Python-style lists. The [Penlight List]() class has the same
     {10,11,20,21,30}
 
 It would be cool if we could add a little bit of custom syntax to make this more natural.  What we first need is a 'macro factory' which outputs the code to create the lists, and also suitable macros with the same names.
-
 
     -- list <var-list> [ = <init-list> ]
     M.define ('list',function(get)
@@ -459,7 +459,7 @@ It would be cool if we could add a little bit of custom syntax to make this more
         return res
     end)
 
-Note that this is a fairly re-usable pattern; it requires the type constructor (`List` in this case) and a type-specific macro function (`list_check`).
+Note that this is a fairly re-usable pattern; it requires the type constructor (`List` in this case) and a type-specific macro function (`list_check`). The only tricky bit is handling the two cases, so the `names` method finds the end using a function, not a simple token.  `names`, like `list`, returns the list and the token that ended the list, so we can use `endt` to check.
 
     list a = {1,2,3}
     list b
@@ -505,10 +505,11 @@ The substitution function checks these cases by appropriate look-ahead:
         end
     end
 
+This can be used interactively, like so (it requires the Penlight list library.)
 
     $> luam  -llist -i
-    LuaJIT 2.0.0-beta8 -- Copyright (C) 2005-2011 Mike Pall. http://luajit.org/
-    Lua Macro 2.2 Copyright (C) 2007-2011 Steve Donovan
+    Lua 5.1.4  Copyright (C) 1994-2008 Lua.org, PUC-Rio
+    Lua Macro 2.3.0 Copyright (C) 2007-2011 Steve Donovan
     > list a = {'one','two'}
     > = a:map(\x(x:sub(1,1)))
     {o,t}
