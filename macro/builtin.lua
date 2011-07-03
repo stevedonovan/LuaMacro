@@ -40,11 +40,20 @@ end
 -- rest of the line.
 -- @usage def_ block (function() _END_CLOSE_
 -- @usage def_ sqr(x) ((x)*(x))
--- #macro def_
+-- @macro def_
 M.define ('def_',macro_def(true))
 
+--- a global version of `def_`.
+-- @see def_
+-- @macro define_
 M.define ('define_',macro_def(false))
 
+--- set the value of an existing macro.
+-- the name and value follows immediately, and the value must be
+-- a single token
+-- @usage set_ T 'string'
+-- @usage set_ F function
+-- @macro set_
 M.define('set_',function(get)
     local name = get:name()
     local t,v = get:next()
@@ -57,7 +66,7 @@ M.define('undef_',function(get)
     M.set_macro(get:name())
 end)
 
---- Insert text after current block end. _END_ is followed by a quoted string
+--- Insert text after current block end. `_END_` is followed by a quoted string
 -- and is used to insert that string after the current block closes.
 -- @macro _END_
 M.define ('_END_',function(get)
@@ -74,12 +83,15 @@ end)
 M.define '_END_END_ _END_ " end"'
 
 --- insert a closing parens after next closing block.
+-- @usage def_ begin (function() _END_CLOSE_
+-- fun begin ... end --> fun (function() ... end)
 -- @macro _END_CLOSE_
 -- @see _END_
 M.define '_END_CLOSE_ _END_ ")"'
 
 --- 'stringizing' macro.
 -- Will convert its argument into a string.
+-- @usage def_ _assert(x) assert(x,_STR_(x))
 -- @macro _STR_
 M.define('_STR_(x)',function(x)
     x = tostring(x)
@@ -121,21 +133,20 @@ end)
 
 --- Load a Lua module immediately. This allows macro definitions to
 -- to be loaded before the rest of the file is parsed.
+-- If the module returns a function, then this is assumed to be a
+-- substitution function, allowing macro modules to insert code
+-- at this point.
 -- @macro require_
 M.define('require_',function(get,put)
     local name = get:string()
-    local ok,fn = pcall(require,name)
-    if not ok and name:match '^%a+$' then
-        ok,fn = pcall(require,'macro.'..name)
-        assert(ok,"require_ cannot find "..name)
-    end
+    local fn = require (name)
     if type(fn) == 'function' then
         return fn(get,put)
     end
 end)
 
 --- Include the contents of a file. This inserts the file directly
--- into the token stream, and is equivalent to cpp's #include directive.
+-- into the token stream, and is equivalent to cpp's `#include` directive.
 -- @macro include_
 M.define('include_',function(get)
     local str = get:string()
