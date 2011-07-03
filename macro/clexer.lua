@@ -1,7 +1,7 @@
 --[[--- A C lexical scanner using LPeg.
 = CREDITS
 = based on the C lexer in Peter Odding's lua-lxsh
-@module macro.lexer
+@module macro.clexer
 --]]
 
 local clexer = {}

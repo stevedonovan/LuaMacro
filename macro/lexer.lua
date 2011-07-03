@@ -44,8 +44,8 @@ function lexer.init ()
     local digit = R('09')
 
     -- range of valid characters after first character of identifier
-    local idsafe = R('AZ', 'az', '\127\255') + P '_'
-
+    --local idsafe = R('AZ', 'az', '\127\255') + P '_'
+    local idsafe = R('AZ', 'az') + P '_' + R '\206\223' * R '\128\255'
     -- operators
     local OT = P '=='
     if extra_tokens then
@@ -151,10 +151,11 @@ function lexer.scan_lua_tokenlist(input)
 end
 
 --- get a token iterator from a source containing Lua code.
--- S  is the source - can be a string or a file-like object (i.e. read() returns line)
 -- Note that this token iterator includes spaces and comments, and does not convert
 -- string and number tokens - so e.g. a string token is quoted and a number token is
 -- an unconverted string.
+-- @param input the source - can be a string or a file-like object (i.e. read() returns line)
+-- @param name for the source
 function lexer.scan_lua(input,name)
     if type(input) ~= 'string' and input.read then
         input = input:read('*a')

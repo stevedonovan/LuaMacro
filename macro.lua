@@ -5,6 +5,25 @@
 -- allows for macros that can read their own input and generate output using Lua code.
 -- New in this release are lexically-scoped macros.
 -- The Lua Lpeg Lexer is by Peter Odding.
+--
+-- Examples:
+--
+--     macro.define 'sqr(x) ((x)*(x))'
+--     macro.define 'assert_(expr) assert(expr,_STR_(expr))'
+--     macro.define('R(n)',function(n)
+--       n = n:get_number()
+--       return ('-'):rep(n)
+--     end
+--     macro.define('lazy',function(get)
+--        get() -- skip space
+--        local expr,endt = get:upto(function(t,v)
+--            return t == ',' or t == ')' or t == ';'
+--              or (t=='space' and v:match '\n')
+--        end)
+--        return 'function(_) return '..tostring(expr)..' end'..tostring(endt)
+--     end)
+--
+--
 -- @author Steve Donovan
 -- @copyright 2011
 -- @license MIT/X11
@@ -56,6 +75,10 @@ end
 -- Defining and Working with Macros.
 -- @section macros
 
+--- make a copy of a list of tokens.
+-- @param tok the list
+-- @param pred copy up to this condition; if defined, must be a function
+-- of two arguments, the token type and the token value.
 function M.copy_tokens(tok,pred)
     local res = {}
     local t,v = tok()
@@ -66,6 +89,9 @@ function M.copy_tokens(tok,pred)
     return res
 end
 
+---- define new lexical tokens.
+-- @param extra a list of strings defining the new tokens
+-- @usage macro.define_tokens{'{|'}
 function M.define_tokens(extra)
     lexer.add_extra_tokens(extra)
 end
@@ -77,12 +103,15 @@ M.macro_table = imacros
 --- define a macro using a specification string and optional function.
 -- The specification looks very much like a C preprocessor macro: the name,
 -- followed by an optional formal argument list (_no_ space after name!) and
--- the substitution. e.g 'answer 42' or 'sqr(x) ((x)*(x))'
+-- the substitution. e.g `answer 42` or `sqr(x) ((x)*(x))`
 --
 -- If there is no substitution, then the second argument must be a function which
--- will be evaluated for the actual substitution.
+-- will be evaluated for the actual substitution. If there are explicit parameters, then they will be passed as token lists. Otherwise, the function is passed a `get` and a `put` argument, which are `Getter` and `TokenList` objects.
+--
+-- The substitution function may return a `TokenList` object, or a string.
 -- @param macstr
 -- @param subst_fn the optional substitution function
+-- @see macro.Getter, macro.TokenList
 function M.define(macstr,subst_fn)
     local tok,t,macname,parms,parm_map
     local mtbl
@@ -286,7 +315,7 @@ end
 
 M.please_throw = false
 
---- Macro error messages.
+--- macro error messages.
 -- @param msg the message: will also have file:line.
 function M.error(msg)
     M.please_throw = true
@@ -303,7 +332,7 @@ M.define ('debug_',function()
     M.DEBUG = true
 end)
 
---- Macro error assert.
+--- macro error assert.
 -- @param expr an expression.
 -- @param msg a message
 function M.assert(expr,msg)
@@ -328,7 +357,7 @@ end
 
 local make_putter = TokenList.new
 
---- Do a macro substitution on Lua source.
+--- do a macro substitution on Lua source.
 -- @param src Lua source (either string or file-like reader)
 -- @param out output (a file-like writer)
 -- @param name input file name
@@ -391,13 +420,6 @@ function M.substitute(src,name, use_c)
 
     local getter = Getter.new(get)
 
-    --- peek ahead or before in the token stream.
-    -- @param k positive delta for looking ahead, negative for looking behind.
-    -- @param dont_skip true if you want to check for whitespace
-    -- @return the token type
-    -- @return the token value
-    -- @return the token offset
-    -- @member Getter
     function getter:peek (k,dont_skip)
         k = k - 1
         local tok = tokn(k)
@@ -415,30 +437,16 @@ function M.substitute(src,name, use_c)
         return t,v,k+1
     end
 
-    --- peek ahead two tokens.
-    -- @return first token type
-    -- @return first token value
-    -- @return second token type
-    -- @return second token value
-    -- @member Getter
     function getter:peek2 ()
         local t1,v1,k1 = self:peek(1)
         local t2,v2 = self:peek(k1+1)
         return t1,v1,t2,v2
     end
 
-    --- patch the token stream at the end.
-    -- @param idx index in output table
-    -- @param text to replace value at that index
-    -- @member Getter
     function getter:patch (idx,text)
         out[idx] = text
     end
 
-    --- put out a placeholder for later patching.
-    -- @param put a putter object
-    -- @return an index into the output table
-    -- @member Getter
     function getter:placeholder (put)
         put:name '/MARK?/'
         return ii
@@ -633,6 +641,8 @@ function M.eval(src,env)
     return pcall(chunk)
 end
 
+--- Make `require` use macro expansion for a given extension.
+-- @param ext the extension - default is 'm.lua'
 function M.set_package_loader(ext)
     ext = ext or 'm.lua'
     -- directly inspired by https://github.com/bartbes/Meta/blob/master/meta.lua#L32,

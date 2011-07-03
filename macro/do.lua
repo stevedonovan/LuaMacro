@@ -1,8 +1,28 @@
 --- An intelligent 'loop-unrolling' macro.
--- `do_` defines a named scoped macro var which is the loop iterator.
+-- `do_` defines a named scoped macro `var` which is the loop iterator.
+--
+-- For example,
+--
+--    y = 0
+--    do_(i,1,10
+--       y = y + i
+--    )
+--    assert(y == 55)
 --
 -- `tuple` is an example of how the expansion of a macro can be
--- controlled by its context
+-- controlled by its context. Normally a tuple `A` expands to
+-- `A_1,A_2,A_3` but inside `do_` it works element-wise:
+--
+--    tuple(3) A,B
+--    def_ do3(stmt) do_(k,1,3,stmt)
+--    do3(A = B/2)
+--
+--  This expands as
+--
+--    A_1 = B_1/2
+--    A_2 = B_2/2
+--    A_3 = B_3/2
+--
 -- @module macro.do
 local M = require 'macro'
 
@@ -28,7 +48,7 @@ M.define('do_(v,s,f,stat)',function(var,start,finish,statements)
     return put
 end)
 
--- an example of conditional expansion.
+--- an example of conditional expansion.
 -- `tuple` takes a list of variable names, like a declaration list except that it
 -- must end with a line end.
 -- @macro tuple

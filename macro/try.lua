@@ -1,8 +1,9 @@
 --- A try/except block.
--- This generates syntactical sugar around pcall, and correctly
+-- This generates syntactical sugar around `pcal`l, and correctly
 -- distinguishes between the try block finishing naturally and
 -- explicitly using 'return' with no value. This is handled by
--- converting any no value 'return' to 'return nil'.
+-- converting any no value `return` to `return nil`.
+--
 -- Apart from the usual creation of a closure, this uses a table
 -- to capture all the results. Not likely to win speed contests,
 -- but intended to be correct.
@@ -34,6 +35,12 @@ M.define('RR_',M.make_scoped_handler('return',check_return_value))
 
 
 --- A try macro, paired with except.
+--
+--     try
+--      maybe_something_bad()
+--     except (e)
+--      print(e)
+--     end
 -- @macro try
 M.define 'try do local r_ =  pcall_(function() RR_ '
 M.define 'except(e) end); if r_[1] then if r_.n > 1 then return unpack(r_,2,r_.n) end else local e = r_[2] _END_END_  '

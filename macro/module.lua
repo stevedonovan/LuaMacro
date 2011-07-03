@@ -1,3 +1,37 @@
+--[[---
+Easy no-fuss modules.
+
+Any function inside the module will be exported, unless it is explicitly
+local. The functions are declared up front using patching, leading to efficient
+calls between module functions.
+
+    require_ 'module'
+
+    function one ()
+      return two()
+    end
+
+    function two ()
+      return 42
+    end
+
+Classes can also be declared inside modules:
+
+    require_ 'module'
+
+    class A
+        function set(self,val) @val = val end
+        function get(self) return @val end
+    end
+
+Within class definitions, the macro `@` expands to either `self.` or `self:` depending
+on context, and provides a Ruby-like shortcut.
+
+If you give these modules names with `m.lua` extension like `mod.m.lua`, then you can
+simply use `require()` to use them with LuaMacro.
+
+@module macro.module
+]]
 local M = require 'macro'
 
 local locals, locals_with_value = {}, {}

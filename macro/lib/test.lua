@@ -1,4 +1,7 @@
---- test library support.
+--- `assert_` macro library support.
+-- This module may of course be used on its own; `assert_` merely provides
+-- some syntactical sugar for its functionality. It is based on Penlight's
+-- `pl.test` module.
 -- @module macro.libs.test
 
 local test = {}
@@ -69,22 +72,41 @@ local function _assert (v1,v2,cmp,msg)
     end
 end
 
+--- assert if parameters are not equal. If the values are tables,
+-- they will be compared by value.
+-- @param v1 given value
+-- @param v2 test value
 function test.assert_eq (v1,v2)
     _assert(v1,v2,_eq,"is not equal to");
 end
 
+--- assert if first parameter is not less than second.
+-- @param v1 given value
+-- @param v2 test value
 function test.assert_lt (v1,v2)
     _assert(v1,v2,_lt,"is not less than")
 end
 
+--- assert if first parameter is not greater than second.
+-- @param v1 given value
+-- @param v2 test value
 function test.assert_gt (v1,v2)
     _assert(v1,v2,_gt,"is not greater than")
 end
 
+--- assert if first parameter string does not match the second.
+-- The condition is `v1:match(v2)`.
+-- @param v1 given value
+-- @param v2 test value
 function test.assert_match (v1,v2)
     _assert(v1,v2,_match,"does not match")
 end
 
+-- return the error message from a function that raises an error.
+-- Will raise an error if the function did not raise an error.
+-- @param fun the function
+-- @param ... any arguments to the function
+-- @return the error message
 function test.pcall_no(fun,...)
     local ok,err = pcall(fun,...)
     if ok then error('expression did not throw error',3) end
@@ -109,6 +131,11 @@ function tuple.__tostring (self)
     return '('..table.concat(ts,',')..')'
 end
 
+--- create a tuple capturing multiple return values.
+-- Equality between tuples means that all of their values are equal;
+-- values may be `nil`
+-- @param ... any values
+-- @return a tuple object
 function test.tuple(...)
     return setmetatable({n=select('#',...),...},tuple)
 end

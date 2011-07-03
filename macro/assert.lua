@@ -1,7 +1,7 @@
 --- a simple testing framework.
 -- Defines a single statment macro assert_ which has the following syntax:
 --
---  - assert_ val1 == val2 (*)
+--  - assert_ val1 == val2
 --  - assert_ val1 > val2
 --  - assert_ val1 < val2
 --  - assert_ val1 matches val2 (using string matching)
@@ -12,6 +12,12 @@
 -- also do value equality for plain tables.  If `val2` is a number given in
 -- %f format (such as 3.14) then it will match `vall` up to that specified
 -- number of digits.
+--
+--     assert_ {one=1,two=2} == {two=2,one=1}
+--     assert_ 'hello' matches '^hell'
+--     assert_ 2 > 1
+--     assert_ ('hello'):find 'll' == (3,4)
+--     assert_ a.x throws 'attempt to index global'
 -- @module macro.assert
 
 local M = require 'macro'

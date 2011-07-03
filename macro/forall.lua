@@ -1,5 +1,5 @@
 --------------------
--- forall statement.
+-- `forall` statement.
 -- The syntax is `forall VAR SELECT [if CONDN] do` where
 -- `SELECT` is either `in TBL` or `= START,FINISH`
 --
@@ -12,7 +12,7 @@
 --    end
 --
 -- Using `forall`, we also define _list comprehensions_ like
--- `LC{s:upper() | s in names if s:match '%S+'}`
+-- `L{s:upper() | s in names if s:match '%S+'}`
 --
 -- @module macro.forall
 
