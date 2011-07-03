@@ -2,7 +2,7 @@
 
 This is a library and driver script for preprocessing and evaluating Lua code. Lexical macros can be defined, which may be simple C-preprocessor style macros or macros that change their expansion depending on the context.
 
-It is a new, rewritten version of the [Luaforge](http://luaforge.net/projects/luamacro/) project of the same name, which required on the [token filter patch](http://www.tecgraf.puc-rio.br/~lhf/ftp/lua/#tokenf) by Luiz Henrique de Figueiredo. This patch allowed Lua scripts to filter the raw token stream before the compiler stage. Within the limits imposed by the lexical filter approach this worked pretty well.  However, the token filter patch is unlikely to ever become part of mainline Lua, either in its original or [revised](http://lua-users.org/lists/lua-l/2010-02/msg00325.html) form. So the most portable option becomes precompilation, but Lua bytecode is not designed to be platform-independent and in any case changes faster than the surface syntax of the language. So using LuaMacro with LuaJIT would have required re-applying the patch, and remaining within the ghetto of specialized, experimental use.
+It is a new, rewritten version of the [Luaforge](http://luaforge.net/projects/luamacro/) project of the same name, which required the [token filter patch](http://www.tecgraf.puc-rio.br/~lhf/ftp/lua/#tokenf) by Luiz Henrique de Figueiredo. This patch allowed Lua scripts to filter the raw token stream before the compiler stage. Within the limits imposed by the lexical filter approach this worked pretty well.  However, the token filter patch is unlikely to ever become part of mainline Lua, either in its original or [revised](http://lua-users.org/lists/lua-l/2010-02/msg00325.html) form. So the most portable option becomes precompilation, but Lua bytecode is not designed to be platform-independent and in any case changes faster than the surface syntax of the language. So using LuaMacro with LuaJIT would have required re-applying the patch, and remaining within the ghetto of specialized, experimental use.
 
 This implementation uses a [LPeg](http://www.inf.puc-rio.br/~roberto/lpeg.html) lexical analyser originally by [Peter Odding](http://lua-users.org/wiki/LpegRecipes) to tokenize Lua source, and builds up a preprocessed string explicitly, which then can be loaded in the usual way. This is not as efficient as the original, but it can be used by anyone with a Lua interpreter, whether it is Lua 5.1, 5.2 or LuaJIT 2. An advantage of fully building the output is that it becomes much easier to debug macros when you can actually see the generated results. (Another example of a LPeg-based Lua macro preprocessor is [Luma](http://luaforge.net/projects/luma/))
 
@@ -44,9 +44,11 @@ we can write:
        ...
     end
 
-A serious criticism of lexical macros is that they don't respect the scoping rules of the language itself. They are always ruthlessly global. Bad experiences with the C preprocessor has practically put the lexical macro in the same box as gotos; to avoid them is putting the ugly history of computing behind you.  For me, a more serious charge against 'macro magic' is that it can lead to a private dialect of the language (the original Bourne shell was written in C 'skinned' to look like Algol 68.)  This often indicates a programmer uncomfortable with a language who wants it to look like something more familiar. Relying on a preprocessor may mean that programmers need to immerse themselves in the idioms of the new language.
+A criticism of traditional lexical macros is that they don't respect the scoping rules of the language itself. Bad experiences with the C preprocessor lead many to regard them as part of the prehistory of computing. The macros described here can be lexically scoped, and can be as 'hygenic' as necessary, since their expansion can be finely controlled with Lua itself.
 
-That being said, macros can extend a language so that it can be more expressive for a particular task, particularly if the user is not a professional programmer. This release of LuaMacro introduces lexically-scoped macros, which helps with the first criticism.
+For me, a more serious charge against 'macro magic' is that it can lead to a private dialect of the language (the original Bourne shell was written in C 'skinned' to look like Algol 68.)  This often indicates a programmer uncomfortable with a language, who wants it to look like something more familiar. Relying on a preprocessor may mean that programmers need to immerse themselves in the idioms of the new language.
+
+That being said, macros can extend a language so that it can be more expressive for a particular task, particularly if the users are not professional programmers.
 
 ### Basic Macro Substitution
 
@@ -83,7 +85,7 @@ So the module `hello-def.lua` is first loaded (compiled and executed, but not pr
 
 Naturaly, there are easier ways to use LuaMacro, but I want to emphasize the sequence of macro loading, preprocessing and script loading. `luam` has a `-d` flag, meaning 'dump', which is very useful when debugging the output of the preprocessing step:
 
-    $> luam -d -hello-def hello.lua
+    $> luam -d -lhello-def hello.lua
     print("Hello, World!")
 
 `hello2.lua` is a more sensible first program:
@@ -170,7 +172,7 @@ A script can now say `$(PATH)` and get the expected expansion, Make-style. But w
 
 If a macro has no parameters, then the substitution function receives a 'getter' object. This provides methods for extracting various token types from the input stream. Here the `$` macro must be immediately followed by an identifier.
 
-We can do better, and define `$` so that something like `$(pwd)` has the same meaning as the Linux shell:
+We can do better, and define `$` so that something like `$(pwd)` has the same meaning as the Unix shell:
 
     macro.define('$',function(get)
        local t,v = get()
@@ -184,7 +186,7 @@ We can do better, and define `$` so that something like `$(pwd)` has the same me
 
 (The getter `get` is callable, and returns the type and value of the next token.)
 
-It is probably a silly example, but it illustrates how a macro can be overloaded based on its lexical context. Much of the expressive power of LuaMacro comes from allowing macros to fetch their own parameters in this way. It allows us to define new syntax and go beyond 'pseudo-functions', which is more important for a conventional-syntax language like Lua than Lisp (where everything looks like a function.)
+It is probably a silly example, but it illustrates how a macro can be overloaded based on its lexical context. Much of the expressive power of LuaMacro comes from allowing macros to fetch their own parameters in this way. It allows us to define new syntax and go beyond 'pseudo-functions', which is more important for a conventional-syntax language like Lua, rather than Lisp where everything looks like a function.
 
 It is entirely possible for macros to create macros; that is what `def_` does. Consider how to add the concept of `const` declarations to Lua:
 
@@ -197,11 +199,11 @@ Here is one solution:
         local vars,values = get:names '=',get:list '\n'
         for i,name in ipairs(vars) do
             macro.assert(values[i],'each constant must be assigned!')
-            macro.set_scoped_macro(name,tostring(values[i]))
+            macro.define_scoped(name,tostring(values[i]))
         end
     end)
 
-The key to making these constants well-behaved is `set_scoped_macro`, which installs a block handler which resets the macro to its original value, which is usually `nil`. This test script shows how the scoping works:
+The key to making these constants well-behaved is `define_scoped`, which installs a block handler which resets the macro to its original value, which is usually `nil`. This test script shows how the scoping works:
 
     require_ 'const'
     do
@@ -252,7 +254,7 @@ There is a second argument passed to the substitution function, which is a 'putt
 
 The `put` object has methods for appending particular kinds of tokens, such as keywords and strings, and is also callable for operator tokens. These always return the object itself, so the output can be built up with chaining.
 
-Consider `\x,y(x+y)`: the `names` getter grabs a comma-separated list of names upto the given token; the `list` getter grabs a general argument list. It returns a list of token lists and by default stops at ')'.  This 'lambda' notation was suggested by LHF as something easily parsed by any token-filtering approach - an alternative notation `|x,y| x+y` has been [suggested](http://lua-users.org/lists/lua-l/2009-12/msg00071.html) but is generally impossible to implement using a lexical scanner, since it would have to parse the function body as an expression. The `\` macro also has the advantage that the operator precedence is explicit: in the case of `\(42,'answer')` it is immediately clear that this is a function of no arguments which returns two values.
+Consider `\x,y(x+y)`: the `names` getter grabs a comma-separated list of names upto the given token; the `list` getter grabs a general argument list. It returns a list of token lists and by default stops at ')'.  This 'lambda' notation was suggested by Luiz Henrique de Figueiredo as something easily parsed by any token-filtering approach - an alternative notation `|x,y| x+y` has been [suggested](http://lua-users.org/lists/lua-l/2009-12/msg00071.html) but is generally impossible to implement using a lexical scanner, since it would have to parse the function body as an expression. The `\\` macro also has the advantage that the operator precedence is explicit: in the case of `\\(42,'answer')` it is immediately clear that this is a function of no arguments which returns two values.
 
 (Although I would not necessarily suggest that lambdas are a good thing in production code, they can be useful in iteractive exploration and within tests.)
 
@@ -384,7 +386,7 @@ Up to now, making a Lua operator token such as `.` into a macro was not so usefu
 I've deliberately indicated the fields using a dot (a rare case of Visual Basic syntax being superior to Delphi).  So it is necessary to overload '.' and look at the previous token: if it isn't a case like `name.` or `].` then we prepend the table.
 
     M.define('with',function(get,put)
-      M.set_scoped_macro('.',function()
+      M.define_scoped('.',function()
         local lt,lv = M.peek(-1,true) --  peek before the period...
         if lt ~= 'iden' and lt ~= ']' then
           return '_var.'
@@ -417,12 +419,16 @@ This has absolutely no effect on the preprocessed text ('fred' remains 'fred', b
 
     macro.define('fred',function(get)
         local t,v = get:peek(1)
-        if t == 'string' then return ...
+        if t == 'string' then
+            local str = get:string()
+            return 'fred_'..str
+        end
+        return nil,true
     end)
 
 Pass-through macros are useful when each macro corresponds to a Lua variable; they allow such variables to have a dual role.
 
-An example would be Python-style lists. The [Penlight List]() class has the same functionality as the built-in Python list, but does not have any syntactical support:
+An example would be Python-style lists. The [Penlight List](http://stevedonovan.github.com/Penlight/api/modules/pl.List.html) class has the same functionality as the built-in Python list, but does not have any syntactical support:
 
     > List = require 'pl.List'
     > ls = List{10,20,20}
@@ -526,7 +532,7 @@ This can be used interactively, like so (it requires the Penlight list library.)
 
 ### Preprocessing C
 
-With the 2.2 release, LuaMacro can preprocess C files, by the inclusion of a C Lpeg lexer based on work by Peter Odding. This may seem a semi-insane pursuit, given that C already has a preprocessor, (which is widely considered a misfeature.)  However, the macros we are talking about are clever, they can maintain state, and can be scoped lexically.
+With the 2.2 release, LuaMacro can preprocess C files, by the inclusion of a C LPeg lexer based on work by Peter Odding. This may seem a semi-insane pursuit, given that C already has a preprocessor, (which is widely considered a misfeature.)  However, the macros we are talking about are clever, they can maintain state, and can be scoped lexically.
 
 One of the irritating things about C is the need to maintain separate include files. It would be better if we could write a module like this:
 
@@ -580,9 +586,22 @@ The macro `export` is straightforward:
 
 It looks ahead and if it finds a `{}` block it writes it wholesale to a file stream; otherwise writes everything upto a block opening.
 
+`tests/cexport.lua` shows how this idea can be extended, so that the generated header is only updated when it changes.
+
+To preprocess C with `luam`, you need to specify the `-C` flag:
+
+    luam -C -lcexport dll.lc > dll.c
+
+Have a look at [lc](modules/macro.lc.html) which defines a simplified way to write Lua bindings in C.
+
+This was used for the [winapi](https://github.com/stevedonovan/winapi) project to preprocess [this file](https://github.com/stevedonovan/winapi/blob/master/winapi.l.c) into standard C.
+
+
 ### Implementation
 
 It is not usually necessary to understand the underlying representation of token lists, but I present it here as a guide to understanding the code.
+
+#### Token Lists
 
 The token list representation of the expression `x+1` is:
 
@@ -619,6 +638,7 @@ becomes
 
     {'one','two','three'}
 
+#### Program Structure
 
 The main loop of `macro.substitute` (towards end of `macro.lua`) summarizes the operation of LuaMacro:
 
