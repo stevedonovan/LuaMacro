@@ -1,9 +1,33 @@
---- Front end for LuaMacro, a Lua macro preprocessor.
--- @program luam
+--[[--
+Front end for LuaMacro, a Lua macro preprocessor.
+
+The default action is to preprocess and run a Lua file. To just dump
+the preprocessed output, use the `-d` flag. Like `lua`, the `-l` flag can
+be used to load a library first, but you need to explicitly say `-i` to
+get an interactive prompt.
+
+The package loader is modified so that `require 'mod'` will preprocess `mod` if it is found as `mod.m.lua`.
+
+Dumping is the only action available when preprocessing C code with `-C`.
+
+##Usage
+
+    LuaMacro 2.3.0, a Lua macro preprocessor and runner
+        -l  require a library
+        -e  statement to be executed
+        -c  error context to be shown (default 2)
+        -d  dump preprocessed output to stdout
+        -C  C lexer
+        -N  No #line directives when generating C
+        -i  interactive prompt
+        <input>    Lua source file
+
+@script luam
+]]
 
 -- adjust the path so that this script can see the macro package
 local path = arg[0]:gsub('[^/\\]+$','')
-package.path = path .. '?.lua;' .. package.path
+package.path = path .. '?.lua;'..path .. 'macro/?.lua;' .. package.path
 local macro = require 'macro'
 require 'macro.builtin'
 
