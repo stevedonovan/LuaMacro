@@ -1,4 +1,14 @@
---- Getter class
+--- Getter class. Used to get values from the token stream. The first
+-- argument `get` of a macro substitution function is of this type.
+--
+--    M.define ('\\',function(get,put)
+--        local args, body = get:names('('), get:list()
+--        return put:keyword 'function' '(' : names(args) ')' :
+--             keyword 'return' : list(body) : space() : keyword 'end'
+--    end)
+--
+-- The second argument `put` is a `TokenList` object.
+-- @see macro.TokenList
 -- @module macro.Getter
 
 local TokenList = require 'macro.TokenList'
@@ -196,8 +206,12 @@ function Getter.string(tok)
     return v:sub(2,-2)
 end
 
---- assert that the next token has the given type.
+--- assert that the next token has the given type. This will throw an
+-- error if the next non-whitespace token does not match.
 -- @param type a token type ('iden','string',etc)
+-- @param value a token value (optional)
+-- @usage  get:expecting '('
+-- @usage  get:expecting ('iden','bonzo')
 function Getter.expecting (tok,type,value)
     local t,v = tnext(tok)
     if t ~= type then M.error ("expected "..type.." got "..t) end
@@ -206,5 +220,30 @@ function Getter.expecting (tok,type,value)
     end
     return t,v
 end
+
+--- peek ahead or before in the token stream.
+-- @param k positive delta for looking ahead, negative for looking behind.
+-- @param dont_skip true if you want to check for whitespace
+-- @return the token type
+-- @return the token value
+-- @return the token offset
+-- @function Getter.peek
+
+--- peek ahead two tokens.
+-- @return first token type
+-- @return first token value
+-- @return second token type
+-- @return second token value
+-- @function Getter.peek2
+
+--- patch the token stream at the end.
+-- @param idx index in output table
+-- @param text to replace value at that index
+-- @function Getter.patch
+
+--- put out a placeholder for later patching.
+-- @param put a putter object
+-- @return an index into the output table
+-- @function Getter.placeholder
 
 return Getter

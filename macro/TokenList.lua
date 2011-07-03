@@ -1,3 +1,11 @@
+---------------
+-- A TokenList class for generating token lists.
+--
+-- There are also useful `get_` methods for extracting values from
+-- the first token.
+--
+-- @module macro.TokenList
+
 local TokenList = {}
 local M = TokenList
 TokenList.__index = TokenList
@@ -75,8 +83,8 @@ end
 -- @param n (1 to #self)
 -- @return token value
 -- @return token type
-function TokenList:pick (n)
-    local t = self[n]
+function TokenList.pick (tl,n)
+    local t = tl[n]
     return t[2],t[1]
 end
 
@@ -134,15 +142,6 @@ function TokenList.tokens(res,tl)
     return res
 end
 
---- convert this tokenlist into a string.
-function TokenList.__tostring(tl)
-    local res = {}
-    for j = 1,#tl do
-        append(res,tl[j][2])
-    end
-    return table.concat(res)
-end
-
 --- put out a list of token lists, separated by commas.
 -- @param res output token list
 -- @param names a list of strings
@@ -172,6 +171,15 @@ function TokenList.keyword(res,keyw)
     append(res,{'keyword',keyw})
     append(res,space)
     return res
+end
+
+--- convert this tokenlist into a string.
+function TokenList.__tostring(tl)
+    local res = {}
+    for j = 1,#tl do
+        append(res,tl[j][2])
+    end
+    return table.concat(res)
 end
 
 --- put out a operator token. This is the overloaded call operator
