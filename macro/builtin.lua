@@ -139,7 +139,10 @@ end)
 -- @macro require_
 M.define('require_',function(get,put)
     local name = get:string()
-    local fn = require (name)
+    local ok,fn = pcall(require,name)
+    if not ok then
+        fn = require('macro.'..name)
+    end
     if type(fn) == 'function' then
         return fn(get,put)
     end
