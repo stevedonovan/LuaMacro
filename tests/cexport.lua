@@ -29,7 +29,7 @@ end)
 M.define('export',function(get)
     local t,v = get:next()
     local decl,out
-    if v == '{' then
+    if v == '{' then -- block!
         decl = tostring(get:upto '}')
         f:write(decl,'\n')
     else
@@ -40,5 +40,40 @@ M.define('export',function(get)
     return out
 end)
 
-M.define('finis',close_header)
+M.define('export',function(get,put)
+    local t,v = get:peek(1,false)
+    local idx = get:placeholder(put)
+    local upto, start, finis
+    if v == '{' then -- block
+        get:next() -- eat '{'
+        M.define('}',function()
+            local stuff = get:copy_from(idx)
+            f:write(stuff,'\n')
+            M.set_macro('}',nil)
+        end)
+    else
+        M.define('{',function()
+            local stuff = get:copy_from(idx)
+            f:write(stuff,';\n')
+            M.set_macro('{',nil)
+            return '{'
+        end)
+    end
+end)
+
+M.define('with',function(get)
+  get:expecting '('
+  local args = get:list()
+  local T, expr = args[1],args[2]
+  get:expecting '{'
+  M.define_scoped('.',function()
+    local lt,lv = get:peek(-1,true) --  peek before the period...
+    if lt ~= 'iden' then
+      return '_var->'
+    else
+      return nil,true -- pass through
+    end
+  end)
+  return '{ ' .. tostring(T) .. ' _var = '..tostring(expr)..'; '
+end)
 

@@ -405,9 +405,8 @@ function M.substitute(src,name, use_c)
                 if keyword_handlers.END then
                     do_action(keyword_handlers.END)
                     keyword_handlers.END = nil
-                else
-                    return nil
                 end
+                return nil
             end -- finally finished
             t,v = tok()
         end
@@ -450,6 +449,17 @@ function M.substitute(src,name, use_c)
     function getter:placeholder (put)
         put:name '/MARK?/'
         return ii
+    end
+
+    function getter:copy_from (pos)
+        local res = {}
+        for i = pos, ii do
+            if out[i] and not out[i]:match '^#line' then
+                append(res,out[i])
+            end
+        end
+        --table.remove(out,pos)
+        return table.concat(res)
     end
 
     -- this feeds the results of a substitution into the token stream.
