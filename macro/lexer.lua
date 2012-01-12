@@ -53,10 +53,10 @@ function lexer.init ()
             OT = OT + P(ex)
         end
     end
-    local operator = token('operator', OT + P '~=' + P '<=' + P '>=' + P '...'
+    local operator = token('operator', OT + P '.' + P '~=' + P '<=' + P '>=' + P '...'
                                               + P '..' + S '+-*/%^#=<>;:,.{}[]()')
     -- identifiers
-    local ident = token('iden', idsafe * (idsafe + digit + P '.') ^ 0)
+    local ident = token('iden', idsafe * (idsafe + digit) ^ 0)
 
     -- keywords
     local keyword = token('keyword', (P 'and' + P 'break' + P 'do' + P 'elseif' +

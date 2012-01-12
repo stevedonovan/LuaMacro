@@ -405,8 +405,9 @@ function M.substitute(src,name, use_c)
                 if keyword_handlers.END then
                     do_action(keyword_handlers.END)
                     keyword_handlers.END = nil
+                else
+                    return nil
                 end
-                return nil
             end -- finally finished
             t,v = tok()
         end
