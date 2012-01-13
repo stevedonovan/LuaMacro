@@ -79,6 +79,8 @@ end
 -- @param tok the list
 -- @param pred copy up to this condition; if defined, must be a function
 -- of two arguments, the token type and the token value.
+-- @return the copy
+-- @return the token that matched the predicate
 function M.copy_tokens(tok,pred)
     local res = {}
     local t,v = tok()
@@ -86,7 +88,7 @@ function M.copy_tokens(tok,pred)
         append(res,{t,v})
         t,v = tok()
     end
-    return res
+    return res,{t,v}
 end
 
 ---- define new lexical tokens.
@@ -381,7 +383,7 @@ function M.substitute(src,name, use_c)
         keywords = lua_keywords
         line_updater = lua_line_updater
     end
-    local tok,tokn = scan_code(src,name)
+    local tok = scan_code(src,name)
     local iline,iline_changed = 0
     local last_t,last_v = 'space','\n'
     local do_action
@@ -422,16 +424,16 @@ function M.substitute(src,name, use_c)
 
     function getter:peek (k,dont_skip)
         k = k - 1
-        local tok = tokn(k)
-        if not tok then return nil,'EOS' end
-        local t,v = tok[1], tok[2]
+        local token = tok(k)
+        if not token then return nil,'EOS' end
+        local t,v = token[1], token[2]
         if not dont_skip then
             local skip = k < 0 and -1 or 1
             while t == 'space' do
                 k = k + skip
-                tok = tokn(k)
+                token = tok(k)
                 if not tok then return nil,'EOS' end
-                t,v = tok[1], tok[2]
+                t,v = token[1], token[2]
             end
         end
         return t,v,k+1
@@ -526,6 +528,7 @@ function M.substitute(src,name, use_c)
     end
 
     while t do
+--        print('tv',t,v)
         local dump = true
         if t == 'iden' then -- classic name macro
             local mac = imacros[v]
@@ -662,7 +665,11 @@ function M.set_package_loader(ext)
         local lname = name:gsub("%.", "/") .. '.'..ext
         local f,err = io.open(lname)
         if not f then return nil,err end
-        return M.load(f,lname)
+        local res,err = M.load(f,lname)
+        if not res then
+            error (err)
+        end
+        return res
     end)
 end
 

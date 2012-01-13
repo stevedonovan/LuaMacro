@@ -16,8 +16,8 @@ local function macro_def (scoped)
             upto = function(t,v)
                 return t == 'space' and v:find '\n'
             end
-            -- return \n, because copy_tokens will eat the line ending
-            ret = {{'space','\n'}}
+            -- return space following (returned by copy_tokens)
+            ret = true
         end
         -- might be immediately followed by a parm list
         t,openp = get()
@@ -25,13 +25,13 @@ local function macro_def (scoped)
             parms = get:names()
         end
         -- the actual substitution is up to the end of the line
-        local args = M.copy_tokens(get,upto)
+        local args, space = M.copy_tokens(get,upto)
         if scoped then
             M.define_scoped(name,args,parms)
         else
             M.set_macro(name,args,parms)
         end
-        return ret
+        return ret and space[2]
     end
 end
 

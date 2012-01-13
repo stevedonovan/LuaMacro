@@ -47,7 +47,12 @@ end
 -- create a token iterator out of a token list
 function Getter.scan_iter (tlist)
     local i,n = 1,#tlist
-    return function()
+    return function(k)
+        if k ~= nil then
+            k = i + k
+            if k < 1 or k > n then return nil end
+            return tokens[k]
+        end
         local tv = tlist[i]
         if tv == nil then return nil end
         i = i + 1
