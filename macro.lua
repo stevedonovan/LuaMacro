@@ -611,7 +611,7 @@ function M.substitute_tostring(src,name,use_c,throw)
 end
 
 local lua52 = _VERSION:match '5.2'
-local loadin
+local loadin, searchpath
 
 if not lua52 then -- Lua 5.1
     function loadin (env,src,name)
@@ -621,6 +621,15 @@ if not lua52 then -- Lua 5.1
         end
         return chunk,err
     end
+    local sep = package.config:sub(1,1)
+    searchpath = function (mod,path)
+        mod = mod:gsub('%.',sep)
+        for m in path:gmatch('[^;]+') do
+            local nm = m:gsub('?',mod)
+            local f = io.open(nm,'r')
+            if f then f:close(); return nm end
+        end
+    end
 else -- Lua 5.2
     function loadin(env,src,name)
         if env then
@@ -629,6 +638,7 @@ else -- Lua 5.2
             return load(src,name)
         end
     end
+    searchpath = package.searchpath
 end
 
 --- load Lua code in a given envrionment after passing
@@ -655,17 +665,17 @@ function M.eval(src,env)
     return pcall(chunk)
 end
 
---- Make `require` use macro expansion for a given extension.
--- @param ext the extension - default is 'm.lua'
-function M.set_package_loader(ext)
-    ext = ext or 'm.lua'
+package.mpath = './?.m.lua'
+
+--- Make `require` use macro expansion.
+-- This is controlled by package.mpath, which is initially './?.m.lua'
+function M.set_package_loader()
     -- directly inspired by https://github.com/bartbes/Meta/blob/master/meta.lua#L32,
     -- after a suggestion by Alexander Gladysh
     table.insert(package.loaders, function(name)
-        local lname = name:gsub("%.", "/") .. '.'..ext
-        local f,err = io.open(lname)
-        if not f then return nil,err end
-        local res,err = M.load(f,lname)
+        local fname = searchpath(name,package.mpath)
+        if not fname then return nil,"cannot find "..name end
+        local res,err = M.load(io.open(fname),lname)
         if not res then
             error (err)
         end
