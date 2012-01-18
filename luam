@@ -13,7 +13,7 @@ Dumping is the only action available when preprocessing C code with `-C`.
 
 ##Usage
 
-    LuaMacro 2.3.0, a Lua macro preprocessor and runner
+    LuaMacro 2.4.0, a Lua macro preprocessor and runner
         -l  require a library
         -e  statement to be executed
         -c  error context to be shown (default 2)
@@ -28,7 +28,7 @@ Dumping is the only action available when preprocessing C code with `-C`.
 
 -- adjust the path so that this script can see the macro package
 local path = arg[0]:gsub('[^/\\]+$','')
-package.path = path .. '?.lua;'..path .. 'macro/?.lua;' .. package.path
+package.path = package.path .. ';' .. path .. '?.lua;'..path .. 'macro/?.lua'
 local macro = require 'macro'
 require 'macro.builtin'
 
@@ -40,6 +40,7 @@ LuaMacro 2.3.0, a Lua macro preprocessor and runner
     -e  statement to be executed
     -c  error context to be shown (default 2)
     -d  dump preprocessed output to stdout
+    -o  write to this file
     -C  C lexer
     -N  No #line directives when generating C
     -i  interactive prompt
@@ -47,7 +48,7 @@ LuaMacro 2.3.0, a Lua macro preprocessor and runner
 ]]
 
 -- parsing the args, the hard way:
-local takes_value = {l = '', e = '', c = 2}
+local takes_value = {l = '', e = '', c = 2, o = ''}
 
 local args = {}
 local idx,i = 1,1
@@ -183,8 +184,14 @@ local function subst_runstring (ins,name,...)
         io.stderr:write(li,'\n')
         os.exit(1)
     end
-    if args.d or args.C then
-        print(buf)
+    if args.d or args.C or args.o ~= '' then
+        if not args.o then
+            print(buf)
+        else
+            local f = io.open(args.o,'w')
+            f:write(buf)
+            f:close()
+        end
     else
         return runstring(buf,name,li,...)
     end
