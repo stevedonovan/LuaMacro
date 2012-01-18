@@ -101,12 +101,12 @@ end
 
 local function lookup_line (lno,li)
     for i = 1,#li-1 do
-        --print(li[i].il,li[i].ol)
+        --print(li[i].il,li[i].ol,lno,'match')
         if lno < li[i+1].ol then
             return li[i].il + (lno - li[i].ol) - 1
         end
     end
-    return li[#li].il + lno - 1
+    return li[#li].il + (lno - li[#li].ol) - 1
 end
 
 -- iterating over all lines in a string can be awkward;
@@ -125,7 +125,6 @@ end
 
 local function fix_error_trace (err,li)
     local strname,lno = err:match '%[string "(%S+)"%]:(%d+)'
-    --print(strname,lno)
     local ino
     if strname then
         lno = tonumber(lno)
