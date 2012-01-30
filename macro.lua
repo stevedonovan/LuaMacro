@@ -407,7 +407,8 @@ function M.substitute(src,name, use_c)
                 if keyword_handlers.END then
                     do_action(keyword_handlers.END)
                     keyword_handlers.END = nil
-                else
+                end
+                if tok == nil then -- END action might have inserted some tokens
                     return nil
                 end
             end -- finally finished
