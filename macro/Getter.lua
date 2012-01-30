@@ -198,7 +198,10 @@ function Getter.names(tok,endt,delim)
     -- list() will return {{}} for an empty list of tlists
     for i,tl in ipairs(ltl) do
         local tv = tl[1]
-        if tv then names[i] = tv[2] end
+        if tv then
+            if tv[1] == 'space' then tv = tl[2] end
+            names[i] = tv[2]
+        end
     end
     return names, err
 end
