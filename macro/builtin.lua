@@ -107,7 +107,7 @@ end)
 -- @param mac existing macro name
 -- @param V a string
 M.define('_PUSH_(mac,V)',function(mac,V)
-    M.push_macro_stack(mac:string(),V:string())
+    M.push_macro_stack(mac:get_string(),V:get_string())
 end)
 
 --- pop a value from a macro's stack.
