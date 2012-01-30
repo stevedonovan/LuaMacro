@@ -26,6 +26,7 @@ M.keyword_handler ('END',function()
     end
 end)
 
+--[[ -- naive and flawed
 M.define('export',function(get)
     local t,v = get:next()
     local decl,out
@@ -39,6 +40,7 @@ M.define('export',function(get)
     end
     return out
 end)
+]]
 
 M.define('export',function(get,put)
     local t,v = get:peek(1,false)
@@ -46,10 +48,9 @@ M.define('export',function(get,put)
     local upto, start, finis
     if v == '{' then -- block
         get:next() -- eat '{'
-        M.define('}',function()
+        M.block_handler(-1,function()
             local stuff = get:copy_from(idx)
             f:write(stuff,'\n')
-            M.set_macro('}',nil)
         end)
     else
         M.define('{',function()
@@ -60,6 +61,21 @@ M.define('export',function(get,put)
         end)
     end
 end)
+
+--[[
+
+Example of a with-statement:
+
+    with(MyType *,bonzo) {
+        .x = 2;
+        .y = 3;
+        with(SubType *,.data) {
+            .name = "hello";
+            .ids = my.ids;
+            printf("count %d\n",.count);
+        }
+    }
+
 
 M.define('with',function(get)
   get:expecting '('
@@ -77,3 +93,4 @@ M.define('with',function(get)
   return '{ ' .. tostring(T) .. ' _var = '..tostring(expr)..'; '
 end)
 
+]]

@@ -1,3 +1,6 @@
+// luam -C -lcexport dll.c
+// expands this file into pukka C and creates/updates dll.h
+
 #include "dll.h"
 
 export {
@@ -6,38 +9,29 @@ typedef struct {
 } MyStruct;
 }
 
+// yes we could use #define here, but it's sometimes useful to have another level
+// of macro substitution
 def_ alloc(T) (T*)malloc(sizeof(T))
 
-// will work in this module, but the .h file will contain
-// unprocessed code!
-def_ This MyStruct *this
+// Plus, LuaMacro can do operator replacements. This is Ruby-style 'field' access
+def_ @ self->
 
 export MyStruct *create() {
     return alloc(MyStruct);
 }
 
-// Ruby-style!
-def_ @ ms->
+def_ This MyStruct *self
 
-export int one(MyStruct *ms) {
+export int one(This) {
     return @ival + 1
 }
 
-export int two(MyStruct *ms) {
-    with(MyType *,bonzo) {
-        .x = 2;
-        .y = 3;
-        with(SubType *,.data) {
-            .name = "hello";
-            .ids = my.ids;
-            printf("count %d\n",.count);
-        }
-    }
-    return 2*ms->ival;
+export int two(This) {
+    return 2*@ival;
 }
 
-grab void bonzo(This) {
-    printf("hello\n");
+export void set(This,int i) {
+    @ival = i;
 }
 
 
