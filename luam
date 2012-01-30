@@ -35,7 +35,7 @@ require 'macro.builtin'
 --- Using luam.
 -- @usage follows
 local usage = [[
-LuaMacro 2.3.0, a Lua macro preprocessor and runner
+LuaMacro 2.4.0, a Lua macro preprocessor and runner
     -l  require a library
     -e  statement to be executed
     -c  error context to be shown (default 2)
@@ -44,6 +44,7 @@ LuaMacro 2.3.0, a Lua macro preprocessor and runner
     -C  C lexer
     -N  No #line directives when generating C
     -i  interactive prompt
+    -v  verbose error trace
     <input>    Lua source file
 ]]
 
@@ -175,7 +176,7 @@ local function subst (ins,name)
     if args.C then
         C = args.N and true or 'line'
     end
-    return macro.substitute_tostring(ins,name,C)
+    return macro.substitute_tostring(ins,name,C,args.v)
 end
 
 local function subst_runstring (ins,name,...)
@@ -185,7 +186,7 @@ local function subst_runstring (ins,name,...)
         os.exit(1)
     end
     if args.d or args.C or args.o ~= '' then
-        if not args.o then
+        if args.o == '' then
             print(buf)
         else
             local f = io.open(args.o,'w')
