@@ -666,7 +666,7 @@ end
 -- @return the cnunk, or nil
 -- @return the error, if no chunk
 function M.load(src,name,env)
-    local res,err = M.substitute_tostring(src)
+    local res,err = M.substitute_tostring(src,'tmp')
     if not res then return nil,err end
     return loadin(env,res,name)
 end
