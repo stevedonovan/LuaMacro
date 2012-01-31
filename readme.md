@@ -575,24 +575,24 @@ The macro `export` is straightforward:
         local decl,out
         if v == '{' then
             decl = tostring(get:upto '}')
+            decl = M.substitute_tostring(decl)
             f:write(decl,'\n')
         else
             decl = v .. ' ' .. tostring(get:upto '{')
+            decl = M.substitute_tostring(decl)
             f:write(decl,';\n')
             out = decl .. '{'
         end
         return out
     end)
 
-It looks ahead and if it finds a `{}` block it writes the block as text to a file stream; otherwise writes out the function signature.  `get:upto '}'` will do the right thing here since it keeps track of brace level.
+It looks ahead and if it finds a `{}` block it writes the block as text to a file stream; otherwise writes out the function signature.  `get:upto '}'` will do the right thing here since it keeps track of brace level.  To allow any other macro expansions to take place, `substitute_tostring` is directly called.
 
 `tests/cexport.lua` shows how this idea can be extended, so that the generated header is only updated when it changes.
 
 To preprocess C with `luam`, you need to specify the `-C` flag:
 
     luam -C -lcexport dll.lc > dll.c
-
-There's a subtle problem with the straightforward version of `export`: it directly reads a token stream without preprocessing it. The version defined in `cexport.lua` uses another technique where we insert a placeholder in the token stream and copy
 
 Have a look at [lc](modules/macro.lc.html) which defines a simplified way to write Lua bindings in C.
 

@@ -39,6 +39,8 @@ local scan_code = lexer.scan_lua
 local append = table.insert
 local setmetatable = setmetatable
 
+--local tdump = require 'pl.pretty'.dump
+
 local scan_iter, tnext = Getter.scan_iter, Getter.next
 
 
@@ -345,7 +347,7 @@ Getter.error = M.error
 Getter.assert = M.assert
 TokenList.assert = M.assert
 
-local line_updater, line_table
+local line_updater, line_table, last_name, last_lang
 
 local function lua_line_updater (iline,oline)
     if not line_table then line_table = {} end
@@ -368,6 +370,16 @@ local make_putter = TokenList.new
 -- @return line number information
 function M.substitute(src,name, use_c)
     local out, ii = {}, 1
+    local subparse
+    if name then
+        last_name = name
+        last_lang = use_c
+    else
+        name = last_name
+        use_c = last_lang and true
+        subparse = true
+    end
+    M.filename = name
     if use_c then
         lexer = require 'macro.clexer'
         scan_code = lexer.scan_c
@@ -388,7 +400,6 @@ function M.substitute(src,name, use_c)
     local last_t,last_v = 'space','\n'
     local do_action
 
-    M.filename = name or '(tmp)'
 
     local t,v = tok()
 
@@ -404,7 +415,7 @@ function M.substitute(src,name, use_c)
         while not t do
             tok = pop(tstack)
             if tok == nil then
-                if keyword_handlers.END then
+                if not subparse and keyword_handlers.END then
                     do_action(keyword_handlers.END)
                     keyword_handlers.END = nil
                 end
@@ -455,14 +466,19 @@ function M.substitute(src,name, use_c)
         return ii
     end
 
-    function getter:copy_from (pos)
+    function getter:copy_from (pos,clear)
         local res = {}
         for i = pos, ii do
             if out[i] and not out[i]:match '^#line' then
                 append(res,out[i])
             end
         end
-        --table.remove(out,pos)
+        if clear then
+            for i = pos, ii do
+                table.remove(out,pos)
+                ii = ii - 1
+            end
+        end
         return table.concat(res)
     end
 
@@ -524,7 +540,7 @@ function M.substitute(src,name, use_c)
         push_substitution(action(getter,make_putter()))
     end
 
-    if keyword_handlers.BEGIN then
+    if not subparse and keyword_handlers.BEGIN then
         do_action(keyword_handlers.BEGIN)
     end
 
