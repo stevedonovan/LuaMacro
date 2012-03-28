@@ -10,7 +10,7 @@ end
 local f,hname,mname
 
 M.keyword_handler('BEGIN',function()
-    hname = M.filename:gsub('%.c$','')..'.h'
+    hname = M.filename:gsub('%.%a+$','')..'.h'
     mname = hname:gsub('%.','_'):upper()
     f = io.open(M.filename..'.h','w')
     f:write('#ifndef ',mname,'\n')

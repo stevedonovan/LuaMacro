@@ -83,13 +83,14 @@ function clexer.init ()
     local singleline_comment = P '//' * (1 - S '\r\n\f') ^ 0
     local multiline_comment = '/*' * (1 - P'*/')^0 * '*/'
     local comment = token('comment', multiline_comment + singleline_comment)
+    local prepro = token('prepro',P '#' * (1 - S '\r\n\f') ^ 0)
 
     -- whitespace
     local whitespace = token('space', S('\r\n\f\t ')^1)
 
     -- ordered choice of all tokens and last-resort error which consumes one character
     local any_token = whitespace + number + keyword + ident +
-                      string + char + comment + operator + token('error', 1)
+                      string + char + comment + prepro + operator + token('error', 1)
 
 
     table_of_tokens = Ct(any_token ^ 0)
