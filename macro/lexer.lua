@@ -22,7 +22,8 @@ Shamelessly ripped from the SQLite[3] project:
 
 local lexer = {}
 local lpeg = require 'lpeg'
-local P, R, S, C, Cc, Ct = lpeg.P, lpeg.R, lpeg.S, lpeg.C, lpeg.Cc, lpeg.Ct
+local P, R, S, C, Cb, Cc, Cg, Cmt, Ct =
+      lpeg.P, lpeg.R, lpeg.S, lpeg.C, lpeg.Cb, lpeg.Cc, lpeg.Cg, lpeg.Cmt, lpeg.Ct
 
 -- create a pattern which captures the lua value [id] and the input matching
 -- [patt] in a table
@@ -76,14 +77,11 @@ function lexer.init ()
 
     -- callback for [=[ long strings ]=]
     -- ps. LPeg is for Lua what regex is for Perl, which makes me smile :)
-    local longstring = #(P '[[' + (P '[' * P '=' ^ 0 * P '['))
-    local longstring = longstring * P(function(input, index)
-       local level = input:match('^%[(=*)%[', index)
-       if level then
-          local _, stop = input:find(']' .. level .. ']', index, true)
-          if stop then return stop + 1 end
-       end
-    end)
+    local equals  = P '=' ^ 0
+    local open    = P '[' * Cg(equals, "init") * P '[' * P '\n' ^ -1
+    local close   = P ']' * C(equals) * P ']'
+    local closeeq = Cmt(close * Cb "init", function (s, i, a, b) return a == b end)
+    local longstring = open * C((P(1) - closeeq)^0) * close / 1
 
     -- strings
     local singlequoted_string = P "'" * ((1 - S "'\r\n\f\\") + (P '\\' * 1)) ^ 0 * "'"
