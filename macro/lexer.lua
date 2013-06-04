@@ -81,7 +81,7 @@ function lexer.init ()
     local open    = P '[' * Cg(equals, "init") * P '[' * P '\n' ^ -1
     local close   = P ']' * C(equals) * P ']'
     local closeeq = Cmt(close * Cb "init", function (s, i, a, b) return a == b end)
-    local longstring = open * C((P(1) - closeeq)^0) * close / 1
+    local longstring = open * C((P(1) - closeeq)^0) * close --/ 1
 
     -- strings
     local singlequoted_string = P "'" * ((1 - S "'\r\n\f\\") + (P '\\' * 1)) ^ 0 * "'"

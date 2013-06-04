@@ -341,6 +341,7 @@ end)
 -- @param msg a message
 function M.assert(expr,msg)
     if not expr then M.error(msg or 'internal error') end
+    return expr
 end
 
 Getter.error = M.error
