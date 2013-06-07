@@ -11,18 +11,6 @@ The package loader is modified so that `require 'mod'` will preprocess `mod` if 
 
 Dumping is the only action available when preprocessing C code with `-C`.
 
-##Usage
-
-    LuaMacro 2.4.0, a Lua macro preprocessor and runner
-        -l  require a library
-        -e  statement to be executed
-        -c  error context to be shown (default 2)
-        -d  dump preprocessed output to stdout
-        -C  C lexer
-        -N  No #line directives when generating C
-        -i  interactive prompt
-        <input>    Lua source file
-
 @script luam
 ]]
 
@@ -35,9 +23,10 @@ require 'macro.builtin'
 --- Using luam.
 -- @usage follows
 local usage = [[
-LuaMacro 2.4.0, a Lua macro preprocessor and runner
+LuaMacro 2.5.0, a Lua macro preprocessor and runner
     -l  require a library
     -e  statement to be executed
+    -D  set a symbol (-DX or -DY=1)
     -c  error context to be shown (default 2)
     -d  dump preprocessed output to stdout
     -o  write to this file
@@ -49,7 +38,7 @@ LuaMacro 2.4.0, a Lua macro preprocessor and runner
 ]]
 
 -- parsing the args, the hard way:
-local takes_value = {l = '', e = '', c = 2, o = ''}
+local takes_value = {l = '', e = '', c = 2, o = '',D = ''}
 
 local args = {}
 local idx,i = 1,1
@@ -261,6 +250,15 @@ end
 macro.set_package_loader()
 
 if args.l ~= '' then require(args.l) end
+
+if args.D ~= '' then
+    local sym,val = args.D:match '([^=]+)=(.+)'
+    if not sym then
+        sym = args.D
+        val = true
+    end
+    _G[sym] = val
+end
 
 if args.e ~= '' then
     subst_runstring(args.e,"<temp>")

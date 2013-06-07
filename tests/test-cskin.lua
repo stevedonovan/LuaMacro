@@ -1,4 +1,5 @@
 -- run like so: luam -lcskin test-cskin.lua
+
 class Named {
   def _init(self,name) { -- name for ctor
     self.name = name

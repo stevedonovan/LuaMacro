@@ -6,6 +6,17 @@ macro.define('$',function(get)
       return 'os.getenv("'..v..'")'
    elseif t == '(' then
       local rest = get:upto ')'
-      return 'os.execute("'..tostring(rest)..'")'
+      return 'eval("'..tostring(rest)..'")'
    end
 end)
+
+return function()
+    return [[
+local function eval(cmd)
+    local f = io.popen(cmd,'r')
+    local res = f:read '*a'
+    f:close()
+    return res
+end
+]]
+end

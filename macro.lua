@@ -629,16 +629,19 @@ function M.substitute_tostring(src,name,use_c,throw)
 end
 
 local lua52 = _VERSION:match '5.2'
-local loadin, searchpath
+local load, searchpath = load, package.searchpath
 
 if not lua52 then -- Lua 5.1
-    function loadin (env,src,name)
+    function load (env,src,name)
         local chunk,err = loadstring(src,name)
         if chunk and env then
             setfenv(chunk,env)
         end
         return chunk,err
     end
+end
+
+if not searchpath then
     local sep = package.config:sub(1,1)
     searchpath = function (mod,path)
         mod = mod:gsub('%.',sep)
@@ -648,15 +651,6 @@ if not lua52 then -- Lua 5.1
             if f then f:close(); return nm end
         end
     end
-else -- Lua 5.2
-    function loadin(env,src,name)
-        if env then
-            return load(src,name,'t',env)
-        else
-            return load(src,name)
-        end
-    end
-    searchpath = package.searchpath
 end
 
 --- load Lua code in a given envrionment after passing
