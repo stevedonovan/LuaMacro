@@ -166,6 +166,11 @@ function Getter.upto(tok,k1,k2)
     return ltl[1],tok
 end
 
+function Getter.line(tok)
+    return tok:upto(function(t,v)
+        return (t=='space' and v:match '\n') or t == 'comment'
+    end)
+end
 
 --- get the next identifier token.
 -- (will be an error if the token has wrong type)

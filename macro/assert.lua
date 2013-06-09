@@ -39,9 +39,7 @@ M.define('assert_',function(get,put)
     local testx,tok = get:upto(function(t,v)
         return relop[t] or (t == 'iden' and (v == 'matches' or v == 'throws'))
     end)
-    local testy,eos = get:upto (function(t,v)
-        return (t == 'space' and v:match '\n') or t == 'comment'
-    end)
+    local testy,eos = get:line()
     local otesty = testy
     testx = tostring(testx)
     testy = tostring(testy)

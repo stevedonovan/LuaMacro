@@ -26,7 +26,7 @@ local usage = [[
 LuaMacro 2.5.0, a Lua macro preprocessor and runner
     -l  require a library
     -e  statement to be executed
-    -D  set a symbol (-DX or -DY=1)
+    -V  set a variable (-VX or -VY=1)
     -c  error context to be shown (default 2)
     -d  dump preprocessed output to stdout
     -o  write to this file
@@ -38,7 +38,7 @@ LuaMacro 2.5.0, a Lua macro preprocessor and runner
 ]]
 
 -- parsing the args, the hard way:
-local takes_value = {l = '', e = '', c = 2, o = '',D = ''}
+local takes_value = {l = '', e = '', c = 2, o = '',V = ';'}
 
 local args = {}
 local idx,i = 1,1
@@ -60,6 +60,8 @@ while i <= #arg do
         local def = takes_value[flag]
         if type(def) == 'number' then
             val = tonumber(val)
+        elseif def == ';' and args[flag] then
+            val = args[flag]..';'..val
         end
         args[flag] = val or true
     else
@@ -215,7 +217,7 @@ end
 
 local function interactive_loop ()
     os.execute(arg[-1]..' -v') -- for the Lua copyright
-    print 'Lua Macro 2.3.0 Copyright (C) 2007-2011 Steve Donovan'
+    print 'Lua Macro 2.5.0 Copyright (C) 2007-2011 Steve Donovan'
 
     local function readline()
         io.write(_PROMPT or '> ')
@@ -251,14 +253,18 @@ macro.set_package_loader()
 
 if args.l ~= '' then require(args.l) end
 
-if args.D ~= '' then
-    local sym,val = args.D:match '([^=]+)=(.+)'
-    if not sym then
-        sym = args.D
-        val = true
+if args.V ~= ';' then
+    for varset in args.V:gmatch '([^;]+)' do
+        local sym,val = varset:match '([^=]+)=(.+)'
+        if not sym then
+            sym = varset
+            val = true
+        end
+        _G[sym] = val
     end
-    _G[sym] = val
 end
+
+require 'macro.ifelse'
 
 if args.e ~= '' then
     subst_runstring(args.e,"<temp>")

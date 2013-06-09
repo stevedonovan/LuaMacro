@@ -1,12 +1,13 @@
-require_ 'atm'
-@eval env = os.getenv
+@let env = os.getenv
 @if env 'P'
-print 'gotcha'
+print 'P env was set'
 @if A
-print 'A was true'
+print 'Global A was true'
 @end
+@elseif A
+print 'Global A was true, no P'
 @else
-print 'nada'
+print 'Neither P or A'
 @end
 
 
