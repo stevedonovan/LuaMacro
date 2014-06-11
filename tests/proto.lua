@@ -1,6 +1,12 @@
 local M = require 'macro'
 
-M.define('SF_',function(get,put)
+function _assert_arg(val,idx,t)
+    if type(val) ~= t then
+        error(("type mismatch argument %d: got %s, expecting %s"):format(idx,type(val),t),2)
+    end
+end
+
+M.define('Function',function(get,put)
     local name = get:upto '('
     local args,endt = get:list()
     args = args:strip_spaces()
@@ -15,11 +21,11 @@ M.define('SF_',function(get,put)
     end
     get:expecting ':'
     local rtype, endt = get:upto '\n'
-    put :tokens(name) '(' :list(argnames) ')' :space '\n'
+    put :keyword 'function' :space() :tokens(name) '(' :list(argnames) ')' :space '\n'
     put :space()
     for i,a in ipairs(args) do
         local tp = a:pick(1)
-        put :name('assert_arg') '(' :name(names[i]) ',' :number(i) ',' :string(tp) ')' ';'
+        put :name('_assert_arg') '(' :name(names[i]) ',' :number(i) ',' :string(tp) ')' ';'
     end
     return put
 end)

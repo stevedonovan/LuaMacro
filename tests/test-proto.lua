@@ -1,3 +1,10 @@
 require_ "proto"
 
-SF_ bonzo.dog (a: int, b: string) : string
+Function bonzo (a: number, b: string) : string
+    return a .. b
+end
+
+print (bonzo(10,"hello"))
+print (bonzo("hello"))  ---> blows up!
+
+

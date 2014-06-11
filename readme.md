@@ -105,9 +105,9 @@ a particular task, particularly if the users are not professional programmers.
 To install LuaMacro, expand the archive and make a script or batch file that points
 to `luam.lua`, for instance:
 
-    lua /home/frodo/luamacro/luam.lua %*
+    lua /home/frodo/luamacro/luam.lua $*
 
-(Or '$*' if not on Windows.) Then put this file on your executable path.
+(Or '%*' if on Windows.) Then put this file on your executable path.
 
 Any Lua code loaded with `luam` goes through four distinct steps:
 
@@ -154,7 +154,11 @@ executed when the program starts executing and we want the macro definitions to 
 available during the current compilation. `require_` is the macro version, which
 loads the file at compile-time.
 
-There is also `include_`, which is analogous to `#include` in `cpp`. It takes a
+New with 2.5 is the default @ shortcut available when using `luam`,
+so `require_` can be written `@require`.
+(`@` is itself a macro, so you can redefine it if needed.)
+
+There is also `include_/@include`, which is analogous to `#include` in `cpp`. It takes a
 file path in quotes, and directly inserts the contents of the file into the current
 compilation. Although tempting to use, it will not work here because again the
 macro definitions will not be available at compile-time.
@@ -162,7 +166,7 @@ macro definitions will not be available at compile-time.
 `hello3.lua` fits much more into the C preprocessor paradigm, which uses the `def_`
 macro:
 
-    def_ HELLO "Hello, World!"
+    @def HELLO "Hello, World!"
     print(HELLO)
 
 (Like `cpp`, such macro definitions end with the line; however, there is no
@@ -223,8 +227,7 @@ function, however.
 
 ### Conditional Compilation
 
-'@' has a predefined meaning for Lua scripts preprocessed with luam. `@name` means
-`name_`. (It is itself a macro, and so can be redefined if desired.)
+For this to work consistently, you need to use the `@` shortcut:
 
     @include 'test.inc'
     @def A 10
@@ -239,26 +242,35 @@ works as you would expect from C:
     @else
     print 'A not defined'
     @end
+    @if os.getenv 'P'
+    print 'Env P is defined'
+    @end
 
 Now, what is `A`?  It is a Lua expression which is evaluated at _preprocessor_
 time, and if it returns any value except `nil` or `false` it is true, using
 the usual Lua rule. Assuming `A` is just a global variable, how can it be set?
 
     $ luam test-cond.lua
-    A defined
-    $ luam -VA test-cond.lua
     A not defined
+    $ luam -VA test-cond.lua
+    A defined
+    $ export P=1
+    $ luam test-cond.lua
+    A not defined
+    Env P is defined
 
-
-
-
+Although this looks very much like the standard C preprocessor, the implementation
+is rather different - `@if` is a special macro which evaluates its argument
+(everything on the rest of the line) as a _Lua expression_
+and skips upto `@end` (or `@else` or `@elseif`) if that condition is false.
 
 
 ### Using macro.define
 
 `macro.define` is less convenient than `def_` but much more powerful. The extended
 form allows the substitution to be a _function_ which is called in-place at compile
-time:
+time. These definitions must be loaded before they can be used,
+either with `-l` or with `@require`.
 
     macro.define('DATE',function()
         return '"'..os.date('%c')..'"'
@@ -311,7 +323,8 @@ based on its lexical context. Much of the expressive power of LuaMacro comes fro
 allowing macros to fetch their own parameters in this way. It allows us to define
 new syntax and go beyond 'pseudo-functions', which is more important for a
 conventional-syntax language like Lua, rather than Lisp where everything looks like
-a function anyway.
+a function anyway. These kinds of macros are called 'reader' macros in the Lisp world,
+since they temporarily take over reading code.
 
 It is entirely possible for macros to create macros; that is what `def_` does.
 Consider how to add the concept of `const` declarations to Lua:
@@ -322,7 +335,8 @@ Here is one solution:
 
     macro.define ('const',function(get)
         get() -- skip the space
-        local vars,values = get:names '=',get:list '\n'
+        local vars = get:names '='
+        local values = get:list '\n'
         for i,name in ipairs(vars) do
             macro.assert(values[i],'each constant must be assigned!')
             macro.define_scoped(name,tostring(values[i]))
@@ -375,8 +389,9 @@ simple list comprehension macro:
 
 For example, `L(x^2,x in t)` will make a list of the squares of all elements in `t`.
 
-(`macro.forall` defines more sophisticated `forall` statements and list
-comprehension expressions, but the principle is the same.)
+Why don't we use a long string here? Because we don't wish to insert any extra line
+feeds in the output.`macro.forall` defines more sophisticated `forall` statements
+and list comprehension expressions, but the principle is the same - see 'tests/test-forall.lua'
 
 There is a second argument passed to the substitution function, which is a 'putter'
 object - an object for building token lists. For example, a useful shortcut for
@@ -644,9 +659,7 @@ the lists, and also suitable macros with the same names.
            values[i] = 'List('..tostring(values[i] or '')..')'
         end
         local lcal = M._interactive and '' or 'local '
-        local res = lcal..table.concat(vars,',')..' =
-'..table.concat(values,',')..tostring(endt)
-        return res
+        return lcal..table.concat(vars,',')..' = '..table.concat(values,',')..tostring(endt)
     end)
 
 Note that this is a fairly re-usable pattern; it requires the type constructor
@@ -789,14 +802,97 @@ header is only updated when it changes.
 
 To preprocess C with `luam`, you need to specify the `-C` flag:
 
-    luam -C -lcexport dll.lc > dll.c
+    luam -C -lcexport -o dll.c dll.lc
 
 Have a look at [lc](modules/macro.lc.html) which defines a simplified way to write
-Lua bindings in C.
+Lua bindings in C. Here is `tests/str.l.c`:
 
-This was used for the [winapi](https://github.com/stevedonovan/winapi) project to
+    // preprocess using luam -C -llc -o str.c str.l.c
+    #include <string.h>
+
+    module "str" {
+
+      def at (Str s, Int i = 0) {
+        lua_pushlstring(L,&s[i-1],1);
+        return 1;
+      }
+
+      def upto (Str s, Str delim = " ") {
+        lua_pushinteger(L, strcspn(s,delim) + 1);
+        return 1;
+      }
+
+    }
+
+The result looks like this:
+
+    // preprocess using luam -C -llc -o str.c str.l.c
+    #line 2 "str.lc"
+    #include <string.h>
+
+    #include <lua.h>
+    #include <lauxlib.h>
+    #include <lualib.h>
+    #ifdef WIN32
+    #define EXPORT __declspec(dllexport)
+    #else
+    #define EXPORT
+    #endif
+    typedef const char *Str;
+    typedef const char *StrNil;
+    typedef int Int;
+    typedef double Number;
+    typedef int Boolean;
+
+
+      #line 6 "str.lc"
+    static int l_at(lua_State *L) {
+        const char *s = luaL_checklstring(L,1,NULL);
+        int i = luaL_optinteger(L,2,0);
+
+        #line 7 "str.lc"
+
+        lua_pushlstring(L,&s[i-1],1);
+        return 1;
+      }
+
+      static int l_upto(lua_State *L) {
+        const char *s = luaL_checklstring(L,1,NULL);
+        const char *delim = luaL_optlstring(L,2," ",NULL);
+
+        #line 12 "str.lc"
+
+        lua_pushinteger(L, strcspn(s,delim) + 1);
+        return 1;
+      }
+
+    static const luaL_reg str_funs[] = {
+           {"at",l_at},
+       {"upto",l_upto},
+        {NULL,NULL}
+    };
+
+    EXPORT int luaopen_str (lua_State *L) {
+        luaL_register (L,"str",str_funs);
+
+        return 1;
+    }
+
+Note the line directives; this makes working with macro-ized C code much easier
+when the inevitable compile and run-time errors occur. `lc` takes away some
+of the more irritating bookkeeping needed in writing C extensions
+(here I only have to mention function names once)
+
+`lc` was used for the [winapi](https://github.com/stevedonovan/winapi) project to
 preprocess [this
-file](https://github.com/stevedonovan/winapi/blob/master/winapi.l.c) into standard C.
+file](https://github.com/stevedonovan/winapi/blob/master/winapi.l.c)
+into [standard C](https://github.com/stevedonovan/winapi/blob/master/winapi.c).
+
+This used an extended version of `lc` which handled the largely superficial
+differences between the Lua 5.1 and 5.2 API.
+
+(The curious thing is that `winapi` is my only project where I've leant on
+LuaMacro, and it's all in C.)
 
 ### A Simple Test Framework
 
@@ -833,21 +929,8 @@ Lua functions often return multiple values or tables:
     @assert two() == (40,2)
     @assert table2() == {40,2}
 
-Any use of `==` with floating-point numbers is going to bite you, eventually.
-Consider this passing assertion:
-
-    @assert 3.1412 == 3.14
-
-If the test value is explicitly in fixed point format, then we'll only match up
-to that precision. This line expands as follows:
-
-    T_.assert_match(("%4.2f"):format( 3.1412 ),"3.14")
-
-Not a very well _tested_ feature, but it does illustrate something that's fairly
-awkward to write out in Lua code.
-
-
-
+For a proper grown-up Lua testing framework
+that uses LuaMacro, see [Specl](http://gvvaughan.github.io/specl).
 
 
 ### Implementation
