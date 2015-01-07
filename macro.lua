@@ -435,6 +435,21 @@ function M.substitute(src,name, use_c)
 
     local getter = Getter.new(get)
 
+    --- get a list of consecutive matching tokens.
+    -- @param get token fetching function
+    -- @param accept set of token types (default: `{space=true,comment=true}`)
+    function getter.matching (get, accept)
+        accept = accept or {space=true, comment=true}
+        local tl = TokenList.new()
+        local t,v = get:peek(1, true)
+        while accept[t] do
+            t,v = get ()
+            append(tl, {t, v})
+            t,v = get:peek(1, true)
+        end
+        return tl
+    end
+
     function getter:peek (k,dont_skip)
         k = k - 1
         local token = tok(k)
