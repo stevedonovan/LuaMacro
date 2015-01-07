@@ -21,22 +21,22 @@ local M = require 'macro'
 --- extended for statement.
 -- @macro forall
 M.define('forall',function(get,put)
-    local var = get:name()
+    local var = get:iden()
     local t,v = get:next()
     local rest,endt = get:list(M.upto_keywords('do','if'))
     put:keyword 'for'
     if v == 'in' then
-        put:name '_' ',' :name(var):keyword 'in'
-        put:name 'ipairs' '(' :list(rest) ')'
+        put:iden '_' ',' :iden(var):keyword 'in'
+        put:iden 'ipairs' '(' :list(rest) ')'
     elseif v == '=' then
-        put:name(var) '=' :list(rest)
+        put:iden(var) '=' :list(rest)
     else
         M.error("expecting in or =")
     end
     put:keyword 'do'
     if endt[2] == 'if' then
         rest,endt = get:list(M.upto_keywords('do'))
-        put:keyword 'if':list(rest):keyword 'then':name '_END_END_'
+        put:keyword 'if':list(rest):keyword 'then':iden '_END_END_'
     end
     return put
 end)
@@ -56,15 +56,15 @@ M.define('L',function(get,put)
         return t == '|' or t == 'keyword' and v == 'for'
     end,'')
     local select = get:list('}','')
-    put '(' : keyword 'function' '(' ')' :keyword 'local':name 'res' '=' '{' '}'
+    put '(' : keyword 'function' '(' ')' :keyword 'local':iden 'res' '=' '{' '}'
     if endt[2] == '|' then
-        put:name'forall'
+        put:iden'forall'
     else
         put:keyword 'for'
     end
     put:list(select):space():keyword'do'
-    put:name'res' '[' '#' :name'res' '+' :number(1) ']' '=' :list(expr):space()
-    put:keyword 'end' :keyword 'return' : name 'res' :keyword 'end' ')' '(' ')'
-    put:name '_POP_':string'L'
+    put:iden'res' '[' '#' :iden'res' '+' :number(1) ']' '=' :list(expr):space()
+    put:keyword 'end' :keyword 'return' : iden 'res' :keyword 'end' ')' '(' ')'
+    put:iden '_POP_':string'L'
     return put
 end)

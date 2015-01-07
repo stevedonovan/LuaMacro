@@ -5,7 +5,7 @@ local concat = table.concat
 M.define ('Tab',function(get)
     get() -- skip space
     -- 'Tab' acts as a 'type' followed by a variable list
-    local vars,endt = get:names (function(t,v)
+    local vars,endt = get:idens (function(t,v)
         return t == '=' or (t == 'space' and v:find '\n')
     end)
     local values = {}

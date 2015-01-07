@@ -15,8 +15,8 @@
 local M = require 'macro'
 
 M.define ('\\',function(get,put)
-	local args, body = get:names('('), get:list()
-	return put:keyword 'function' '(' : names(args) ')' :
+	local args, body = get:idens('('), get:list()
+	return put:keyword 'function' '(' : idens(args) ')' :
         keyword 'return' : list(body) : space() : keyword 'end'
 end)
 

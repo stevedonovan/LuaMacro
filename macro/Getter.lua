@@ -2,8 +2,8 @@
 -- argument `get` of a macro substitution function is of this type.
 --
 --    M.define ('\\',function(get,put)
---        local args, body = get:names('('), get:list()
---        return put:keyword 'function' '(' : names(args) ')' :
+--        local args, body = get:idens('('), get:list()
+--        return put:keyword 'function' '(' : idens(args) ')' :
 --             keyword 'return' : list(body) : space() : keyword 'end'
 --    end)
 --
@@ -174,12 +174,14 @@ end
 
 --- get the next identifier token.
 -- (will be an error if the token has wrong type)
--- @return name
-function Getter.name(tok)
+-- @return identifier name
+function Getter.iden(tok)
     local t,v = tnext(tok)
-    M.assert(t == 'iden','expecting name')
+    M.assert(t == 'iden','expecting identifier')
     return v
 end
+
+Getter.name = Getter.iden -- backwards compatibility!
 
 --- get the next number token.
 -- (will be an error if the token has wrong type)
@@ -190,15 +192,15 @@ function Getter.number(tok)
     return tonumber(v)
 end
 
---- get a delimited list of names.
+--- get a delimited list of identifiers.
 -- works like list.
 -- @param tok the token stream
 -- @param endt the end token (default ')')
 -- @param delim the delimiter (default ',')
 -- @see list
-function Getter.names(tok,endt,delim)
+function Getter.idens(tok,endt,delim)
     local ltl,err = tok:list(endt,delim)
-    if not ltl then error('get_names: '..err) end
+    if not ltl then error('idens: '..err) end
     local names = {}
     -- list() will return {{}} for an empty list of tlists
     for i,tl in ipairs(ltl) do
@@ -210,6 +212,8 @@ function Getter.names(tok,endt,delim)
     end
     return names, err
 end
+
+Getter.names = Getter.idens -- backwards compatibility!
 
 --- get the next string token.
 -- (will be an error if the token has wrong type)

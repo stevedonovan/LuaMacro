@@ -129,7 +129,7 @@ function M.define(macstr,subst_fn)
     end
     t = tok()
     if t == '(' then
-        parms = Getter.new(tok):names()
+        parms = Getter.new(tok):idens()
     end
     mtbl[macname] = {
         name = macname,
@@ -463,7 +463,7 @@ function M.substitute(src,name, use_c)
     end
 
     function getter:placeholder (put)
-        put:name '/MARK?/'
+        put:iden '/MARK?/'
         return ii
     end
 

@@ -81,16 +81,16 @@ end)
 M.define('def',function(get,put)
     local stuff = get:list('{','')
     put:keyword('function')
-    if btop.classname then put:name(btop.classname) '.' end
+    if btop.classname then put:iden(btop.classname) '.' end
     push_brace_stack()
     return put:list(stuff)
 end)
 
 ----- OOP support ------
 M.define('class',function(get,put)
-    local name,t,v = get:name(),get:next()
+    local name,t,v = get:iden(),get:next()
     local base = ''
-    if t == ':' then base = get:name(); t = get:next() end
+    if t == ':' then base = get:iden(); t = get:next() end
     M.assert(t == '{','expecting {')
     push_brace_stack {classname = name}
     return 'do '..name..' = class_('..base..')'
@@ -110,7 +110,7 @@ M.define('forall',function (get,put)
     stuff = fun(get.from_tl(stuff),put)
     -- let the unskinned Lua pass through with _SKIN_ to re-enable skinning
     disabled = true
-    stuff:name '_SKIN_':space()
+    stuff:iden '_SKIN_':space()
     push_brace_stack()
     return stuff
 end)
