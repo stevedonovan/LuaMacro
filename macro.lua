@@ -322,7 +322,6 @@ M.please_throw = false
 --- macro error messages.
 -- @param msg the message: will also have file:line.
 function M.error(msg)
-    M.please_throw = true
     msg = M.filename..':'..lexer.line..' '..msg
     if M.please_throw then
         error(msg,2)
