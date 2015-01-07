@@ -208,12 +208,29 @@ function Getter.line(tok)
     end)
 end
 
+
+local function prettyprint (t, v)
+    v = v:gsub ("\n", "\\n")
+    if t == "string" then
+        if #v > 16 then v = v:sub(1,12).."..."..v:sub(1,1) end
+        return t.." "..v
+    end
+    if #v > 16 then v = v:sub(1,12).."..." end
+    if t == "space" or t == "comment" or t == "keyword" then
+        return t.." '"..v.."'"
+    elseif t == v then
+        return "'"..v.."'"
+    else
+        return t.." "..v
+    end
+end
+
 --- get the next identifier token.
 -- (will be an error if the token has wrong type)
 -- @return identifier name
 function Getter.iden(tok)
     local t,v = tnext(tok)
-    M.assert(t == 'iden','expecting identifier')
+    M.assert(t == 'iden','expecting identifier, got '..prettyprint(t,v))
     return v
 end
 
@@ -224,7 +241,7 @@ Getter.name = Getter.iden -- backwards compatibility!
 -- @return converted number
 function Getter.number(tok)
     local t,v = tnext(tok)
-    M.assert(t == 'number','expecting number')
+    M.assert(t == 'number','expecting number, got '..prettyprint(t,v))
     return tonumber(v)
 end
 
@@ -268,9 +285,9 @@ end
 -- @usage  get:expecting ('iden','bonzo')
 function Getter.expecting (tok,type,value)
     local t,v = tnext(tok)
-    if t ~= type then M.error ("expected "..type.." got "..t) end
+    if t ~= type then M.error ("expected "..type.." got "..prettyprint(t,v)) end
     if value then
-        if v ~= value then M.error("expected "..value.." got "..v) end
+        if v ~= value then M.error("expected "..value.." got "..prettyprint(t,v)) end
     end
     return t,v
 end
