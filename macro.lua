@@ -450,20 +450,21 @@ function M.substitute(src,name, use_c)
         return tl
     end
 
-    function getter:peek (k,dont_skip)
-        k = k - 1
-        local token = tok(k)
-        if not token then return nil,'EOS' end
-        local t,v = token[1], token[2]
-        if not dont_skip then
-            local skip = k < 0 and -1 or 1
-            while t == 'space' do
-                k = k + skip
-                token = tok(k)
-                if not tok then return nil,'EOS' end
+    function getter:peek (offset,dont_skip)
+        local step = offset < 0 and -1 or 1 -- passing offset 0 is undefined
+        local k = 0
+        local token, t, v
+        repeat
+            while true do
+                token = tok (k)
+                if not token then return nil, 'EOS' end
                 t,v = token[1], token[2]
+                if dont_skip or (t ~= 'space' and t ~= 'comment') then break end
+                k = k + 1
             end
-        end
+            offset = offset - step
+            k = k + step
+        until offset == 0
         return t,v,k+1
     end
 
