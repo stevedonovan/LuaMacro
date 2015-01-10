@@ -237,7 +237,8 @@ function Getter.names(tok,endt,delim)
     if not ltl then error('get_names: '..err) end
     local names = {}
     -- list() will return {{}} for an empty list of tlists
-    for i,tl in ipairs(ltl) do
+    for i = 1,#ltl do
+	local tl = ltl[i]
         local tv = tl[1]
         if tv then
             if tv[1] == 'space' then tv = tl[2] end
