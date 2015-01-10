@@ -93,13 +93,13 @@ local no_class_require
 local function at_handler (get,put)
     local tn,name,tp = get:peek2(1)
     M.assert(tn == 'iden','identifier must follow @')
-    return put:name ('self',true) (tp=='(' and ':' or '.')
+    return put:iden ('self',true) (tp=='(' and ':' or '.')
 end
 
 local function method_handler (get,put)
   local tn,name,tp = get:peek2()
   if not was_local_function(get) and tn == 'iden' and tp == '(' then
-    return put ' ' :name ('_C',true) '.'
+    return put ' ' :iden ('_C',true) '.'
   end
 end
 
@@ -114,10 +114,10 @@ end)
 
 M.define('class',function(get)
     local base = ''
-    local name = get:name()
+    local name = get:iden()
     if get:peek(1) == ':' then
         get:next()
-        base = get:name()
+        base = get:iden()
     end
     module_add_new_local(name)
     return ('do local _C = _class(%s); %s = _C; _C_\n'):format(base,name)

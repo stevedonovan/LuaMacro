@@ -11,7 +11,7 @@ M.define ('list',function(get)
     -- 'list' acts as a 'type' followed by a variable list, which may be
     -- followed by initial values
     local values
-    local vars,endt = get:names (function(t,v)
+    local vars,endt = get:idens (function(t,v)
         return t == '=' or (t == 'space' and v:find '\n')
     end)
     -- there is an initialization list

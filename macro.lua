@@ -129,7 +129,7 @@ function M.define(macstr,subst_fn)
     end
     t = tok()
     if t == '(' then
-        parms = Getter.new(tok):names()
+        parms = Getter.new(tok):idens()
     end
     mtbl[macname] = {
         name = macname,
@@ -322,8 +322,7 @@ M.please_throw = false
 --- macro error messages.
 -- @param msg the message: will also have file:line.
 function M.error(msg)
-    M.please_throw = true
-    msg = M.filename..':'..lexer.line..' '..msg
+    msg = M.filename..':'..lexer.line..': '..msg
     if M.please_throw then
         error(msg,2)
     else
@@ -479,7 +478,7 @@ function M.substitute(src,name, use_c)
     end
 
     function getter:placeholder (put)
-        put:name '/MARK?/'
+        put:iden '/MARK?/'
         return ii
     end
 

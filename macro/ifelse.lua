@@ -33,7 +33,7 @@ end
 M.define('@',function(get,put)
     local t,v = get()
 --~     print('got',t,v)
-    return put:name(v..'_')
+    return put:iden(v..'_')
 end)
 
 local ifstack,push,pop = {},table.insert,table.remove

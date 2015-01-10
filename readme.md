@@ -295,7 +295,7 @@ A script can now say `$(PATH)` and get the expected expansion, Make-style. But w
 can do better and support `$PATH` directly:
 
     macro.define('$',function(get)
-        local var = get:name()
+        local var = get:iden()
         return 'os.getenv("'..var..'")'
     end)
 
@@ -335,7 +335,7 @@ Here is one solution:
 
     macro.define ('const',function(get)
         get() -- skip the space
-        local vars = get:names '='
+        local vars = get:idens '='
         local values = get:list '\n'
         for i,name in ipairs(vars) do
             macro.assert(values[i],'each constant must be assigned!')
@@ -369,7 +369,7 @@ than the equivalent generic `for` loop. `forall` can be implemented fairly simpl
 as a macro:
 
     macro.define('forall',function(get)
-      local var = get:name()
+      local var = get:iden()
       local t,v = get:next() -- will be 'in'
       local rest = tostring(get:upto 'do')
       return ('for _,%s in ipairs(%s) do'):format(var,rest)
@@ -398,9 +398,9 @@ object - an object for building token lists. For example, a useful shortcut for
 anonymous functions:
 
     M.define ('\\',function(get,put)
-        local args = get:names('(')
+        local args = get:idens('(')
         local body = get:list()
-        return put:keyword 'function' '(' : names(args) ')' :
+        return put:keyword 'function' '(' : idens(args) ')' :
             keyword 'return' : list(body) : space() : keyword 'end'
     end)
 
@@ -408,11 +408,11 @@ The `put` object has methods for appending particular kinds of tokens, such as
 keywords and strings, and is also callable for operator tokens. These always return
 the object itself, so the output can be built up with chaining.
 
-Consider `\x,y(x+y)`: the `names` getter grabs a comma-separated list of names upto
-the given token; the `list` getter grabs a general argument list. It returns a list
-of token lists and by default stops at ')'.  This 'lambda' notation was suggested
-by Luiz Henrique de Figueiredo as something easily parsed by any token-filtering
-approach - an alternative notation `|x,y| x+y` has been
+Consider `\x,y(x+y)`: the `idens` getter grabs a comma-separated list of identifier
+names upto the given token; the `list` getter grabs a general argument list. It
+returns a list of token lists and by default stops at ')'.  This 'lambda' notation
+was suggested by Luiz Henrique de Figueiredo as something easily parsed by any
+token-filtering approach - an alternative notation `|x,y| x+y` has been
 [suggested](http://lua-users.org/lists/lua-l/2009-12/msg00071.html) but is
 generally impossible to implement using a lexical scanner, since it would have to
 parse the function body as an expression. The `\\` macro also has the advantage
@@ -463,13 +463,13 @@ For each iteration, it needs to define a local macro `i` which expands to 1,2 an
         macro.push_token_stack('do_',var)
         for i = start, finish do
             -- output `set_ <var> <value> `
-            put:name 'set_':name(var):number(i):space()
+            put:iden 'set_':iden(var):number(i):space()
             put:tokens(statements)
         end
         -- output `undef_ <var> <value>`
-        put:name 'undef_':name(var)
+        put:iden 'undef_':iden(var)
         -- output `_POP_ 'do_'`
-        put:name '_DROP_':string 'do_'
+        put:iden '_DROP_':string 'do_'
         return put
     end)
 
@@ -521,19 +521,19 @@ And here is the definition:
         local N = get:number()
         get:expecting ')'
         get:expecting 'space'
-        local names = get:names '\n'
+        local names = get:idens '\n'
         for _,name in ipairs(names) do
             macro.define(name,function(get,put)
                 local loop_var = macro.value_of_macro_stack 'do_'
                 if loop_var then
                     local loop_idx = tonumber(macro.get_macro_value(loop_var))
-                    return put:name (name..'_'..loop_idx)
+                    return put:iden (name..'_'..loop_idx)
                 else
                     local out = {}
                     for i = 1,N do
                         out[i] = name..'_'..i
                     end
-                    return put:names(out)
+                    return put:idens(out)
                 end
             end)
         end
@@ -644,7 +644,7 @@ the lists, and also suitable macros with the same names.
         -- 'list' acts as a 'type' followed by a variable list, which may be
         -- followed by initial values
         local values
-        local vars,endt = get:names (function(t,v)
+        local vars,endt = get:idens (function(t,v)
             return t == '=' or (t == 'space' and v:find '\n')
         end)
         -- there is an initialization list
@@ -664,8 +664,8 @@ the lists, and also suitable macros with the same names.
 
 Note that this is a fairly re-usable pattern; it requires the type constructor
 (`List` in this case) and a type-specific macro function (`list_check`). The only
-tricky bit is handling the two cases, so the `names` method finds the end using a
-function, not a simple token.  `names`, like `list`, returns the list and the token
+tricky bit is handling the two cases, so the `idens` method finds the end using a
+function, not a simple token.  `idens`, like `list`, returns the list and the token
 that ended the list, so we can use `endt` to check.
 
     list a = {1,2,3}
