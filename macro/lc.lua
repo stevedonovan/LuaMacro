@@ -308,7 +308,7 @@ static void $(klass)_register (lua_State *L) {
 ]]
 
 M.define('class',function(get)
-    local name = get:name()
+    local name = get:iden()
     get:expecting '{'
     local fields = get:upto (function(t,v)
         return t == 'iden' and v == 'constructor'

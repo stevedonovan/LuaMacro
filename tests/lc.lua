@@ -113,7 +113,7 @@ end)
 
 
 M.define('def',function(get)
-    local fname = get:name()
+    local fname = get:iden()
     local cname = (btop.ns and btop.ns..'_' or '')..fname
     append(btop.names,fname)
     append(btop.cnames,cname)
@@ -263,7 +263,7 @@ static void $(klass)_register (lua_State *L) {
 ]]
 
 M.define('class',function(get)
-    local name = get:name()
+    local name = get:iden()
     get:expecting '{'
     local fields = get:upto (function(t,v)
         return t == 'iden' and v == 'constructor'

@@ -43,7 +43,7 @@ local function extract (tl)
 end
 
 --- get an identifier from front of a token list.
--- @return name
+-- @return identifier name
 function TokenList.get_iden (tl)
     local tk = extract(tl)
     M.assert(tk[1]=='iden','expecting identifier')
@@ -95,7 +95,7 @@ local comma,space = {',',','},{'space',' '}
 -- @param name the identifier
 -- @param no_space true if you don't want a space after the iden
 -- @return self
-function TokenList.name(res,name,no_space)
+function TokenList.iden(res,name,no_space)
     append(res,{'iden',name})
     if not no_space then
         append(res,space)
@@ -103,11 +103,13 @@ function TokenList.name(res,name,no_space)
     return res
 end
 
+TokenList.name = TokenList.iden -- backwards compatibility!
+
 --- append a string.
--- @param name the string
+-- @param s the string
 -- @return self
-function TokenList.string(res,name)
-    append(res,{'string','"'..name..'"'})
+function TokenList.string(res,s)
+    append(res,{'string','"'..s..'"'})
     return res
 end
 
@@ -119,21 +121,23 @@ function TokenList.number(res,val)
     return res
 end
 
---- put out a list of names, separated by commas.
+--- put out a list of identifiers, separated by commas.
 -- @param res output token list
--- @param names a list of strings
+-- @param names a list of identifiers
 -- @return self
-function TokenList.names(res,names)
+function TokenList.idens(res,names)
     for i = 1,#names do
-        res:name(names[i],true)
+        res:iden(names[i],true)
         if i ~= #names then append(res,comma) end
     end
     return res
 end
 
+TokenList.names = TokenList.idens -- backwards compatibility!
+
 --- put out a token list.
 -- @param res output token list
--- @param names a token list
+-- @param tl a token list
 -- @return self
 function TokenList.tokens(res,tl)
     for j = 1,#tl do
@@ -144,7 +148,7 @@ end
 
 --- put out a list of token lists, separated by commas.
 -- @param res output token list
--- @param names a list of strings
+-- @param ltl a list of token lists
 -- @return self
 function TokenList.list(res,ltl)
     for i = 1,#ltl do

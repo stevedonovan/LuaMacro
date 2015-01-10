@@ -25,7 +25,7 @@ M.define('Function',function(get,put)
     put :space()
     for i,a in ipairs(args) do
         local tp = a:pick(1)
-        put :name('_assert_arg') '(' :name(names[i]) ',' :number(i) ',' :string(tp) ')' ';'
+        put :iden('_assert_arg') '(' :iden(names[i]) ',' :number(i) ',' :string(tp) ')' ';'
     end
     return put
 end)
