@@ -166,10 +166,13 @@ end
 --- put out a keyword token.
 -- @param res output token list
 -- @param keyw a Lua keyword
+-- @param no_space true if you don't want a space after the iden
 -- @return self
-function TokenList.keyword(res,keyw)
+function TokenList.keyword(res,keyw,no_space)
     append(res,{'keyword',keyw})
-    append(res,space)
+    if not no_space then
+        append(res,space)
+    end
     return res
 end
 
