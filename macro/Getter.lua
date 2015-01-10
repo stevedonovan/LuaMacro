@@ -76,6 +76,46 @@ end
 
 local TL,LTL = TokenList.new, TokenList.new_list
 
+
+local function tappend (tl,t,val)
+    val = val or t
+    append(tl,{t,val})
+end
+
+--- get a balanced block.
+-- Typically for grabbing up to an `end` keyword including any nested
+-- `if`, `do` or `function` blocks with their own `end` keywords.
+-- @param tok the token stream
+-- @param begintokens set of tokens requiring their own nested *endtokens*
+--   (default: `{['do']=true,['function']=true,['if']=true}`)
+-- @param endtokens set of tokens ending a block (default:`{['end']=true}`)
+-- @return list of tokens
+-- @return block end token in form `{type,value}`
+-- @usage
+--   -- copy a balanced table constructor
+--   get:expecting '{'
+--   put '{':tokens (get:block ({['{']=true}, {['}']=true}) '}')
+function Getter.block(tok,begintokens,endtokens)
+    begintokens = begintokens or {['do']=true,['function']=true,['if']=true}
+    endtokens = endtokens or {['end']=true}
+    local level = 1 -- used to count expected matching `endtokens`
+    local tl = TL()
+    local token,value
+    repeat
+        token,value = tok()
+        if not token then return nil,'unexpected end of block' end
+        if begintokens[value] then
+	    level = level + 1
+        elseif endtokens[value] then
+	    level = level - 1
+        end
+	if level > 0 then  -- final end token is returned separately
+            tappend(tl,token,value)
+	end
+    until level == 0
+    return tl,tok_new{token,value}
+end
+
 --- get a delimited list of token lists.
 -- Typically used for grabbing argument lists like ('hello',a+1,fred(c,d)); will count parens
 -- so that the delimiter (usually a comma) is ignored inside sub-expressions. You must have
@@ -93,10 +133,6 @@ function Getter.list(tok,endtoken,delim)
     local parm_values = LTL()
     local level = 1 -- used to count ( and )
     local tl = TL()
-    local function tappend (tl,t,val)
-        val = val or t
-        append(tl,{t,val})
-    end
     local is_end
     if type(endtoken) == 'function' then
         is_end = endtoken
