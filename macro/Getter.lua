@@ -51,7 +51,7 @@ function Getter.scan_iter (tlist)
         if k ~= nil then
             k = i + k
             if k < 1 or k > n then return nil end
-            return tokens[k]
+            return tlist[k]
         end
         local tv = tlist[i]
         if tv == nil then return nil end
