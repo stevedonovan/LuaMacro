@@ -54,8 +54,8 @@ function lexer.init ()
             OT = OT + P(ex)
         end
     end
-    local operator = token('operator', OT + P '.' + P '~=' + P '<=' + P '>=' + P '...'
-                                              + P '..' + S '+-*/%^#=<>;:,.{}[]()')
+    local operator = token('operator', OT + '~=' + '<=' + '>=' + '...'
+                                              + '..' + S '+-*/%^#=<>;:,.{}[]()')
     -- identifiers
     local ident = token('iden', idsafe * (idsafe + digit) ^ 0)
 
