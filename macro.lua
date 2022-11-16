@@ -678,7 +678,7 @@ end
 function M.load(src,name,env)
     local res,err = M.substitute_tostring(src,'tmp')
     if not res then return nil,err end
-    return loadin(env,res,name)
+    return load(env,res,name)
 end
 
 --- evaluate Lua macro code in a given environment.
@@ -687,7 +687,7 @@ end
 -- @return true if succeeded
 -- @return result(s)
 function M.eval(src,env)
-    local chunk,err = M.loadin(src,'(tmp)',env)
+    local chunk,err = M.load(src,'(tmp)',env)
     if not chunk then return nil,err end
     return pcall(chunk)
 end
